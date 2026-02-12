@@ -8,19 +8,35 @@ function App() {
   const [formData, setFormData] = useState({ username: '', password: '' });
   const [listings, setListings] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
-  const [newListing, setNewListing] = useState({ title: '', description: '' });
+  const [newListing, setNewListing] = useState({ 
+    title: '', 
+    description: '', 
+    category: 'Laptop', 
+    condition: 'Good', 
+    quantity: 1 
+  });
 
+  // --- Auth Logic ---
   const handleAuth = async (endpoint) => {
+    if (formData.password.length < 8) {
+      alert("Password must be at least 8 characters long.");
+      return;
+    }
+
     try {
       const response = await fetch(`${API_BASE}/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(formData), // Corrected to send user credentials
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || 'Auth failed');
+      
       if (endpoint === 'login') setIsLoggedIn(true);
-      else { alert("Success! Please login."); setView('login'); }
+      else { 
+        alert("Success! Please login."); 
+        setView('login'); 
+      }
     } catch (err) { alert(err.message); }
   };
 
@@ -40,7 +56,7 @@ function App() {
         body: JSON.stringify({ ...newListing, owner: formData.username }),
       });
       if (response.ok) {
-        setNewListing({ title: '', description: '' });
+        setNewListing({ title: '', description: '', category: 'Laptop', condition: 'Good', quantity: 1 });
         setShowCreate(false);
         fetchListings();
       }
@@ -52,60 +68,130 @@ function App() {
   const myListings = listings.filter(l => l.owner === formData.username);
   const publicListings = listings.filter(l => l.owner !== formData.username);
 
-  const pageWrapper = { display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '100vh', width: '100vw', fontFamily: 'system-ui, sans-serif', backgroundColor: '#f8fafc', paddingTop: '5vh' };
-  const logoStyle = { fontSize: '2.5rem', fontWeight: '800', marginBottom: '0.5rem', color: '#1e293b' };
-  const cardStyle = { backgroundColor: '#fff', padding: '2.5rem', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', width: '90%', maxWidth: '700px' };
-  const inputStyle = { display: 'block', width: '100%', padding: '12px', margin: '8px 0 16px 0', borderRadius: '6px', border: '1px solid #e2e8f0', boxSizing: 'border-box' };
+  // --- Styles ---
+  const pageWrapper = { 
+    display: 'flex', flexDirection: 'column', alignItems: 'center', 
+    minHeight: '100vh', width: '100vw', fontFamily: 'system-ui, sans-serif', 
+    backgroundColor: '#f1f5f9', paddingTop: '2vh' 
+  };
+  
+  const logoStyle = { fontSize: '3rem', fontWeight: '800', marginBottom: '0.5rem', color: '#1e293b' };
+  
+  const cardStyle = { 
+    backgroundColor: '#fff', padding: '3rem', borderRadius: '16px', 
+    boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', width: '95%',            
+    maxWidth: '1400px', minHeight: '80vh'        
+  };
 
+  const inputStyle = { 
+    display: 'block', width: '100%', padding: '16px', margin: '12px 0 20px 0', 
+    borderRadius: '10px', border: '2px solid #e2e8f0', boxSizing: 'border-box',
+    fontSize: '1.2rem', fontFamily: 'inherit', color: '#334155'
+  };
+
+  const labelStyle = { fontSize: '1.1rem', fontWeight: '600', color: '#64748b' };
+
+  // --- Sub-Components ---
   const ListingBox = ({ item, isOwn }) => (
-    <div style={{ border: '1px solid #f1f5f9', padding: '1rem', borderRadius: '8px', backgroundColor: isOwn ? '#eff6ff' : '#fdfdfd', marginBottom: '10px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <h4 style={{ margin: '0 0 4px 0', color: '#334155' }}>{item.title}</h4>
-        <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{item.owner}</span>
+    <div style={{ 
+      border: '1px solid #f1f5f9', padding: '1.5rem', borderRadius: '12px', 
+      backgroundColor: isOwn ? '#eff6ff' : '#ffffff', marginBottom: '15px',
+      boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+        <h4 style={{ margin: 0, color: '#1e293b', fontSize: '1.3rem' }}>{item.title}</h4>
+        <span style={{ 
+          fontSize: '0.9rem', padding: '4px 12px', borderRadius: '12px', 
+          backgroundColor: isOwn ? '#dbeafe' : '#f1f5f9', color: '#475569', fontWeight: '700'
+        }}>{item.category}</span>
       </div>
-      <p style={{ color: '#64748b', fontSize: '0.9rem', margin: 0 }}>{item.description}</p>
+      <div style={{ fontSize: '1rem', color: '#64748b', marginBottom: '10px' }}>
+        Condition: <strong style={{color: '#334155'}}>{item.condition}</strong> | Qty: <strong style={{color: '#334155'}}>{item.quantity}</strong>
+      </div>
+      <p style={{ color: '#475569', fontSize: '1.1rem', lineHeight: '1.6', margin: '0 0 12px 0' }}>{item.description}</p>
+      {!isOwn && (
+        <div style={{ fontSize: '0.95rem', color: '#94a3b8', borderTop: '1px solid #f1f5f9', paddingTop: '10px', marginTop: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span>👤 Posted by:</span>
+          <strong style={{ color: '#2563eb' }}>{item.owner}</strong>
+        </div>
+      )}
     </div>
   );
 
+  // --- Render Logic ---
   if (isLoggedIn) {
     return (
       <div style={pageWrapper}>
         <div style={logoStyle}>DeviceLink</div>
-        <div style={{ marginBottom: '2rem', color: '#64748b' }}>Welcome, <strong>{formData.username}</strong></div>
-        
+        <div style={{ marginBottom: '2rem', color: '#64748b', fontSize: '1.3rem' }}>
+          Welcome, <strong>{formData.username}</strong>
+        </div>
+      
         <div style={cardStyle}>
-          <header style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}>
-            <h2 style={{ margin: 0 }}>Dashboard</h2>
-            <button onClick={() => setIsLoggedIn(false)} style={{ cursor: 'pointer', border: 'none', background: 'none', color: '#ef4444' }}>Logout</button>
+          <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem', borderBottom: '2px solid #f8fafc', paddingBottom: '1rem' }}>
+            <h2 style={{ fontSize: '2.2rem', margin: 0 }}>Dashboard</h2>
+            <button onClick={() => setIsLoggedIn(false)} style={{ cursor: 'pointer', border: 'none', background: 'none', color: '#ef4444', fontSize: '1.2rem', fontWeight: '700' }}>Logout</button>
           </header>
 
           {!showCreate ? (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2px 1fr', gap: '4rem', alignItems: 'start' }}>
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                  <h3 style={{ margin: 0, fontSize: '1.1rem' }}>My Listings</h3>
-                  <button onClick={() => setShowCreate(true)} style={{ backgroundColor: '#2563eb', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' }}>+ New</button>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.8rem', color: '#1e293b' }}>My Listings</h3>
+                  <button onClick={() => setShowCreate(true)} style={{ backgroundColor: '#2563eb', color: 'white', border: 'none', padding: '12px 24px', borderRadius: '10px', cursor: 'pointer', fontSize: '1.1rem', fontWeight: '600' }}>+ Create New</button>
                 </div>
                 {myListings.map(item => <ListingBox key={item.id} item={item} isOwn={true} />)}
-                {myListings.length === 0 && <p style={{ fontSize: '0.8rem', color: '#94a3b8' }}>No personal listings.</p>}
+                {myListings.length === 0 && <p style={{ fontSize: '1.2rem', color: '#94a3b8' }}>No personal listings yet.</p>}
               </div>
 
+              <div style={{ backgroundColor: '#f1f5f9', width: '100%', height: '100%', minHeight: '500px', borderRadius: '2px' }}></div>
+
               <div>
-                <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.1rem' }}>Community</h3>
+                <h3 style={{ margin: '0 0 2rem 0', fontSize: '1.8rem', color: '#1e293b' }}>Community Marketplace</h3>
                 {publicListings.map(item => <ListingBox key={item.id} item={item} isOwn={false} />)}
-                {publicListings.length === 0 && <p style={{ fontSize: '0.8rem', color: '#94a3b8' }}>No public listings.</p>}
+                {publicListings.length === 0 && <p style={{ fontSize: '1.2rem', color: '#94a3b8' }}>The marketplace is currently empty.</p>}
               </div>
             </div>
           ) : (
-            <form onSubmit={handleCreateListing}>
-              <h3>Create New Listing</h3>
-              <input required placeholder="Device Name" style={inputStyle} value={newListing.title} onChange={(e) => setNewListing({...newListing, title: e.target.value})} />
-              <textarea required placeholder="Description" style={{ ...inputStyle, height: '80px' }} value={newListing.description} onChange={(e) => setNewListing({...newListing, description: e.target.value})} />
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button type="submit" style={{ flex: 1, padding: '12px', backgroundColor: '#059669', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Post</button>
-                <button type="button" onClick={() => setShowCreate(false)} style={{ flex: 1, padding: '12px', backgroundColor: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
-              </div>
-            </form>
+            <div style={{ maxWidth: '800px', margin: '0 auto', padding: '1rem 0' }}>
+              <h3 style={{ fontSize: '2.2rem', marginBottom: '2rem', textAlign: 'center' }}>Create New Listing</h3>
+              <form onSubmit={handleCreateListing}>
+                <label style={labelStyle}>Device Title</label>
+                <input required placeholder="What are you listing?" style={inputStyle} value={newListing.title} onChange={(e) => setNewListing({...newListing, title: e.target.value})} />
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  <div>
+                    <label style={labelStyle}>Category</label>
+                    <select style={inputStyle} value={newListing.category} onChange={(e) => setNewListing({...newListing, category: e.target.value})}>
+                      <option value="Laptop">Laptop</option>
+                      <option value="Phone">Phone</option>
+                      <option value="Tablet">Tablet</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Condition</label>
+                    <select style={inputStyle} value={newListing.condition} onChange={(e) => setNewListing({...newListing, condition: e.target.value})}>
+                      <option value="Excellent">Excellent</option>
+                      <option value="Good">Good</option>
+                      <option value="Fair">Fair</option>
+                      <option value="Poor">Poor</option>
+                    </select>
+                  </div>
+                </div>
+
+                <label style={labelStyle}>Quantity</label>
+                <input type="number" required style={inputStyle} min="1" value={newListing.quantity} onChange={(e) => setNewListing({...newListing, quantity: parseInt(e.target.value) || 1})} />
+                
+                <label style={labelStyle}>Description</label>
+                <textarea required placeholder="Tell us about the device..." style={{ ...inputStyle, height: '150px' }} value={newListing.description} onChange={(e) => setNewListing({...newListing, description: e.target.value})} />
+                
+                <div style={{ display: 'flex', gap: '20px', marginTop: '1.5rem' }}>
+                  <button type="submit" style={{ flex: 2, padding: '20px', backgroundColor: '#059669', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer', fontSize: '1.3rem', fontWeight: '700' }}>Publish Listing</button>
+                  <button type="button" onClick={() => setShowCreate(false)} style={{ flex: 1, padding: '20px', backgroundColor: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '12px', cursor: 'pointer', fontSize: '1.3rem', fontWeight: '600' }}>Cancel</button>
+                </div>
+              </form>
+            </div>
           )}
         </div>
       </div>
@@ -115,15 +201,15 @@ function App() {
   return (
     <div style={pageWrapper}>
       <div style={logoStyle}>DeviceLink</div>
-      <div style={{ ...cardStyle, maxWidth: '400px' }}>
-        <h2 style={{ textAlign: 'center', marginBottom: '1.5rem' }}>{view === 'login' ? 'Login' : 'Sign Up'}</h2>
+      <div style={{ ...cardStyle, maxWidth: '450px', minHeight: 'auto' }}>
+        <h2 style={{ textAlign: 'center', marginBottom: '2rem', fontSize: '2rem' }}>{view === 'login' ? 'Login' : 'Sign Up'}</h2>
         <input placeholder="Username" style={inputStyle} onChange={(e) => setFormData({...formData, username: e.target.value})} />
         <input type="password" placeholder="Password" style={inputStyle} onChange={(e) => setFormData({...formData, password: e.target.value})} />
-        <button onClick={() => handleAuth(view)} style={{ width: '100%', padding: '12px', backgroundColor: '#1e293b', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
-          {view === 'login' ? 'Enter' : 'Join'}
+        <button onClick={() => handleAuth(view)} style={{ width: '100%', padding: '16px', backgroundColor: '#1e293b', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '1.2rem', fontWeight: '600' }}>
+          {view === 'login' ? 'Enter Dashboard' : 'Create Account'}
         </button>
-        <p onClick={() => setView(view === 'login' ? 'register' : 'login')} style={{ marginTop: '1.5rem', textAlign: 'center', cursor: 'pointer', color: '#2563eb', fontSize: '0.9rem' }}>
-          {view === 'login' ? "Need an account? Sign up" : "Already have an account? Login"}
+        <p onClick={() => setView(view === 'login' ? 'register' : 'login')} style={{ marginTop: '2rem', textAlign: 'center', cursor: 'pointer', color: '#2563eb', fontSize: '1.1rem', fontWeight: '500' }}>
+          {view === 'login' ? "New here? Join the community" : "Already a member? Log in"}
         </p>
       </div>
     </div>

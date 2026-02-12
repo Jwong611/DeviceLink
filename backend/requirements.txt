@@ -2,3 +2,5 @@ fastapi
 uvicorn
 sqlalchemy
 pydantic
+
+# command to install : pip install -r requirements.txt

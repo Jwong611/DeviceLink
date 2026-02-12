@@ -57,12 +57,12 @@ function App() {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'flex-start', // Shifts content to the top
+    justifyContent: 'flex-start', 
     minHeight: '100vh',
     width: '100vw',
     fontFamily: 'system-ui, sans-serif',
     backgroundColor: '#f8fafc',
-    paddingTop: '5vh' // Provides spacing from the very top edge
+    paddingTop: '5vh' 
   };
 
   const logoStyle = {

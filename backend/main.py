@@ -16,7 +16,7 @@ class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True)
-    password = Column(String) # In production, use hashed passwords!
+    password = Column(String)
 
 class Listing(Base):
     __tablename__ = "listings"
@@ -36,12 +36,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Schemas
 class UserSchema(BaseModel):
     username: str
     password: str
 
-# Routes
+class ListingCreate(BaseModel):
+    title: str
+    description: str
+
 @app.post("/register")
 def register(user: UserSchema):
     db = SessionLocal()
@@ -62,15 +64,10 @@ def login(user: UserSchema):
 def get_listings():
     db = SessionLocal()
     listings = db.query(Listing).all()
-    db.close() # Always close the session
+    db.close() 
     return listings
 
-# Add ListingSchema to your schemas section
-class ListingCreate(BaseModel):
-    title: str
-    description: str
 
-# Add this route to your backend
 @app.post("/listings")
 def create_listing(listing: ListingCreate):
     db = SessionLocal()

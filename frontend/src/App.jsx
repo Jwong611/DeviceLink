@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import Admin from './Admin';
 
 const API_BASE = "http://localhost:8000";
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [view, setView] = useState('login'); 
   const [formData, setFormData] = useState({ username: '', password: '' });
   const [listings, setListings] = useState([]);
@@ -32,7 +34,18 @@ function App() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || 'Auth failed');
       
-      if (endpoint === 'login') setIsLoggedIn(true);
+      if (endpoint === 'login') {
+        setIsLoggedIn(true);
+        try {
+          const adminRes = await fetch(`${API_BASE}/admin/check/${formData.username}`);
+          if (adminRes.ok) {
+            const adminData = await adminRes.json();
+            setIsAdmin(adminData.is_admin);
+          }
+        } catch (err) {
+          console.log('Could not check admin status');
+        }
+      }
       else { 
         alert("Success! Please login."); 
         setView('login'); 
@@ -120,6 +133,9 @@ function App() {
 
   // --- Render Logic ---
   if (isLoggedIn) {
+    if (isAdmin) {
+      return <Admin username={formData.username} onLogout={() => { setIsLoggedIn(false); setIsAdmin(false); }} />;
+    }
     return (
       <div style={pageWrapper}>
         <div style={logoStyle}>DeviceLink</div>
@@ -130,7 +146,7 @@ function App() {
         <div style={cardStyle}>
           <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem', borderBottom: '2px solid #f8fafc', paddingBottom: '1rem' }}>
             <h2 style={{ fontSize: '2.2rem', margin: 0 }}>Dashboard</h2>
-            <button onClick={() => setIsLoggedIn(false)} style={{ cursor: 'pointer', border: 'none', background: 'none', color: '#ef4444', fontSize: '1.2rem', fontWeight: '700' }}>Logout</button>
+            <button onClick={() => { setIsLoggedIn(false); setIsAdmin(false); }} style={{ cursor: 'pointer', border: 'none', background: 'none', color: '#ef4444', fontSize: '1.2rem', fontWeight: '700' }}>Logout</button>
           </header>
 
           {!showCreate ? (

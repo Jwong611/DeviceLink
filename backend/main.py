@@ -1,10 +1,11 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, create_engine
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, create_engine, or_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from pydantic import BaseModel, Field
 from datetime import datetime
+from typing import Optional
 import bcrypt
 
 DATABASE_URL = "sqlite:///./devicelink.db"
@@ -124,11 +125,81 @@ def login(user: UserSchema):
     return {"message": "Login successful"}
 
 @app.get("/listings")
-def get_listings():
+def get_listings(
+    q: Optional[str] = Query(None, description="Search term matched against title and description"),
+    category: Optional[str] = Query(None, description="Filter by category"),
+    condition: Optional[str] = Query(None, description="Filter by condition"),
+    min_quantity: Optional[int] = Query(None, ge=0, description="Minimum quantity"),
+    max_quantity: Optional[int] = Query(None, ge=0, description="Maximum quantity"),
+    owner: Optional[str] = Query(None, description="Filter by owner username"),
+    own_username: Optional[str] = Query(None, description="If provided, show all listings (approved/unapproved) for this user"),
+    approved: bool = Query(True, description="Only include approved listings by default"),
+    page: int = Query(1, ge=1, description="Page number starting at 1"),
+    per_page: int = Query(20, ge=1, le=200, description="Results per page"),
+):
+    """Browse/search/filter listings as a normal user.
+
+    If own_username is provided, shows all that user's listings (approved and unapproved).
+    Otherwise defaults to showing only approved listings. Supports pagination, text search
+    (against title and description), and filters for category, condition,
+    quantity range and owner.
+    Returns a dict with `items` and `meta` pagination info.
+    """
     db = SessionLocal()
-    listings = db.query(Listing).all()
+    query = db.query(Listing)
+
+    # If viewing own listings, show all; otherwise only approved
+    if own_username:
+        query = query.filter(Listing.owner == own_username)
+    elif approved:
+        query = query.filter(Listing.approved == True)
+
+    if q:
+        like_term = f"%{q}%"
+        query = query.filter(or_(Listing.title.ilike(like_term), Listing.description.ilike(like_term)))
+
+    if category:
+        query = query.filter(Listing.category == category)
+
+    if condition:
+        query = query.filter(Listing.condition == condition)
+
+    if owner:
+        query = query.filter(Listing.owner == owner)
+
+    if min_quantity is not None:
+        query = query.filter(Listing.quantity >= min_quantity)
+
+    if max_quantity is not None:
+        query = query.filter(Listing.quantity <= max_quantity)
+
+    total = query.count()
+
+    items = query.order_by(Listing.created_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
     db.close()
-    return listings
+
+    def _serialize(l: Listing):
+        return {
+            "id": l.id,
+            "title": l.title,
+            "description": l.description,
+            "category": l.category,
+            "condition": l.condition,
+            "quantity": l.quantity,
+            "owner": l.owner,
+            "approved": l.approved,
+            "created_at": l.created_at.isoformat() if l.created_at else None,
+        }
+
+    return {
+        "items": [_serialize(l) for l in items],
+        "meta": {
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "pages": (total + per_page - 1) // per_page if per_page else 0,
+        },
+    }
 
 @app.post("/listings")
 def create_listing(listing: ListingCreate):
@@ -139,7 +210,8 @@ def create_listing(listing: ListingCreate):
         category=listing.category,
         condition=listing.condition,
         quantity=listing.quantity,
-        owner=listing.owner
+        owner=listing.owner,
+        approved=True
     )
     db.add(new_listing)
     db.commit()

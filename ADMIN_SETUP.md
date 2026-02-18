@@ -54,12 +54,7 @@ Make sure your FastAPI backend is running:
 
 ```bash
 # In the backend folder
-# From the repository root (recommended):
 python -m uvicorn main:app --reload
-
-# Or, change into the backend folder and run:
-# cd backend
-# python -m uvicorn main:app --reload
 ```
 
 ### Step 4: Login

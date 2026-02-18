@@ -10,6 +10,11 @@ function App() {
   const [formData, setFormData] = useState({ username: '', password: '' });
   const [listings, setListings] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
+  const [filterCondition, setFilterCondition] = useState('');
+  const [filterMinQty, setFilterMinQty] = useState('');
+  const [filterMaxQty, setFilterMaxQty] = useState('');
   const [newListing, setNewListing] = useState({ 
     title: '', 
     description: '', 
@@ -55,8 +60,25 @@ function App() {
 
   const fetchListings = async () => {
     try {
-      const response = await fetch(`${API_BASE}/listings`);
-      if (response.ok) setListings(await response.json());
+      // Fetch user's own listings (including unapproved)
+      const ownRes = await fetch(`${API_BASE}/listings?own_username=${formData.username}`);
+      const ownData = ownRes.ok ? await ownRes.json() : { items: [] };
+      const ownListings = ownData.items || [];
+
+      // Build query string for public listings with filters
+      let publicQuery = `${API_BASE}/listings?approved=true`;
+      if (searchTerm) publicQuery += `&q=${encodeURIComponent(searchTerm)}`;
+      if (filterCategory) publicQuery += `&category=${encodeURIComponent(filterCategory)}`;
+      if (filterCondition) publicQuery += `&condition=${encodeURIComponent(filterCondition)}`;
+      if (filterMinQty) publicQuery += `&min_quantity=${filterMinQty}`;
+      if (filterMaxQty) publicQuery += `&max_quantity=${filterMaxQty}`;
+
+      const publicRes = await fetch(publicQuery);
+      const publicData = publicRes.ok ? await publicRes.json() : { items: [] };
+      const publicListings = (publicData.items || []).filter(l => l.owner !== formData.username);
+
+      // Combine all listings
+      setListings([...ownListings, ...publicListings]);
     } catch (err) { console.error(err); }
   };
 
@@ -163,9 +185,75 @@ function App() {
               <div style={{ backgroundColor: '#f1f5f9', width: '100%', height: '100%', minHeight: '500px', borderRadius: '2px' }}></div>
 
               <div>
-                <h3 style={{ margin: '0 0 2rem 0', fontSize: '1.8rem', color: '#1e293b' }}>Community Marketplace</h3>
+                <div style={{ marginBottom: '2rem' }}>
+                  <h3 style={{ margin: '0 0 1.5rem 0', fontSize: '1.8rem', color: '#1e293b' }}>Community Marketplace</h3>
+                  
+                  <div style={{ backgroundColor: '#f8fafc', padding: '1.5rem', borderRadius: '12px', marginBottom: '1.5rem' }}>
+                    <h4 style={{ margin: '0 0 1rem 0', fontSize: '1.1rem', color: '#475569', fontWeight: '600' }}>Search & Filter</h4>
+                    
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                      <input 
+                        type="text" 
+                        placeholder="Search listings..." 
+                        value={searchTerm} 
+                        onChange={(e) => setSearchTerm(e.target.value)} 
+                        style={{ ...inputStyle, margin: 0, padding: '12px' }} 
+                      />
+                      <select 
+                        value={filterCategory} 
+                        onChange={(e) => setFilterCategory(e.target.value)} 
+                        style={{ ...inputStyle, margin: 0, padding: '12px' }}
+                      >
+                        <option value="">All Categories</option>
+                        <option value="Laptop">Laptop</option>
+                        <option value="Phone">Phone</option>
+                        <option value="Tablet">Tablet</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                      <select 
+                        value={filterCondition} 
+                        onChange={(e) => setFilterCondition(e.target.value)} 
+                        style={{ ...inputStyle, margin: 0, padding: '12px' }}
+                      >
+                        <option value="">All Conditions</option>
+                        <option value="Excellent">Excellent</option>
+                        <option value="Good">Good</option>
+                        <option value="Fair">Fair</option>
+                        <option value="Poor">Poor</option>
+                      </select>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <input 
+                          type="number" 
+                          placeholder="Min Qty" 
+                          min="0" 
+                          value={filterMinQty} 
+                          onChange={(e) => setFilterMinQty(e.target.value)} 
+                          style={{ ...inputStyle, margin: 0, padding: '12px', flex: 1 }} 
+                        />
+                        <input 
+                          type="number" 
+                          placeholder="Max Qty" 
+                          min="0" 
+                          value={filterMaxQty} 
+                          onChange={(e) => setFilterMaxQty(e.target.value)} 
+                          style={{ ...inputStyle, margin: 0, padding: '12px', flex: 1 }} 
+                        />
+                      </div>
+                    </div>
+
+                    <button 
+                      onClick={fetchListings} 
+                      style={{ width: '100%', padding: '12px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '1rem', fontWeight: '600' }}
+                    >
+                      Apply Filters
+                    </button>
+                  </div>
+                </div>
                 {publicListings.map(item => <ListingBox key={item.id} item={item} isOwn={false} />)}
-                {publicListings.length === 0 && <p style={{ fontSize: '1.2rem', color: '#94a3b8' }}>The marketplace is currently empty.</p>}
+                {publicListings.length === 0 && <p style={{ fontSize: '1.2rem', color: '#94a3b8' }}>No listings match your filters.</p>}
               </div>
             </div>
           ) : (

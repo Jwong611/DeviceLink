@@ -265,7 +265,8 @@ def update_listing(listing_id: int, listing: ListingUpdate, username: str):
     db_listing.category = listing.category
     db_listing.condition = listing.condition
     db_listing.quantity = listing.quantity
-    db_listing.status = listing.status
+    db_listing.status = "PENDING"
+    db_listing.approved = False
     db.commit()
     db.refresh(db_listing)
     

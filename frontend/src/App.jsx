@@ -10,6 +10,7 @@ function App() {
   const [formData, setFormData] = useState({ username: '', password: '' });
   const [listings, setListings] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [editingListing, setEditingListing] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterCondition, setFilterCondition] = useState('');
@@ -98,6 +99,51 @@ function App() {
     } catch (err) { alert("Failed to create listing"); }
   };
 
+  const handleEditListing = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await fetch(`${API_BASE}/listings/${editingListing.id}?username=${formData.username}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newListing),
+      });
+      if (response.ok) {
+        setNewListing({ title: '', description: '', category: 'Laptop', condition: 'Good', quantity: 1 });
+        setEditingListing(null);
+        setShowCreate(false);
+        fetchListings();
+      } else {
+        alert("Failed to update listing");
+      }
+    } catch (err) { alert("Failed to update listing"); }
+  };
+
+  const handleDeleteListing = async (listingId) => {
+    if (!confirm("Are you sure you want to delete this listing?")) return;
+    try {
+      const response = await fetch(`${API_BASE}/listings/${listingId}?username=${formData.username}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        fetchListings();
+      } else {
+        alert("Failed to delete listing");
+      }
+    } catch (err) { alert("Failed to delete listing"); }
+  };
+
+  const startEdit = (listing) => {
+    setEditingListing(listing);
+    setNewListing({
+      title: listing.title,
+      description: listing.description,
+      category: listing.category,
+      condition: listing.condition,
+      quantity: listing.quantity
+    });
+    setShowCreate(true);
+  };
+
   useEffect(() => { if (isLoggedIn) fetchListings(); }, [isLoggedIn]);
 
   const myListings = listings.filter(l => l.owner === formData.username);
@@ -127,7 +173,7 @@ function App() {
   const labelStyle = { fontSize: '1.1rem', fontWeight: '600', color: '#64748b' };
 
   // --- Sub-Components ---
-  const ListingBox = ({ item, isOwn }) => (
+  const ListingBox = ({ item, isOwn, onEdit, onDelete }) => (
     <div style={{ 
       border: '1px solid #f1f5f9', padding: '1.5rem', borderRadius: '12px', 
       backgroundColor: isOwn ? '#eff6ff' : '#ffffff', marginBottom: '15px',
@@ -135,13 +181,50 @@ function App() {
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
         <h4 style={{ margin: 0, color: '#1e293b', fontSize: '1.3rem' }}>{item.title}</h4>
-        <span style={{ 
-          fontSize: '0.9rem', padding: '4px 12px', borderRadius: '12px', 
-          backgroundColor: isOwn ? '#dbeafe' : '#f1f5f9', color: '#475569', fontWeight: '700'
-        }}>{item.category}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ 
+            fontSize: '0.9rem', padding: '4px 12px', borderRadius: '12px', 
+            backgroundColor: isOwn ? '#dbeafe' : '#f1f5f9', color: '#475569', fontWeight: '700'
+          }}>{item.category}</span>
+          {isOwn && (
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button 
+                onClick={() => onEdit(item)} 
+                style={{ 
+                  padding: '4px 8px', 
+                  backgroundColor: '#2563eb', 
+                  color: 'white', 
+                  border: 'none', 
+                  borderRadius: '6px', 
+                  cursor: 'pointer', 
+                  fontSize: '0.8rem',
+                  fontWeight: '600'
+                }}
+              >
+                Edit
+              </button>
+              <button 
+                onClick={() => onDelete(item.id)} 
+                style={{ 
+                  padding: '4px 8px', 
+                  backgroundColor: '#dc2626', 
+                  color: 'white', 
+                  border: 'none', 
+                  borderRadius: '6px', 
+                  cursor: 'pointer', 
+                  fontSize: '0.8rem',
+                  fontWeight: '600'
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
       </div>
       <div style={{ fontSize: '1rem', color: '#64748b', marginBottom: '10px' }}>
         Condition: <strong style={{color: '#334155'}}>{item.condition}</strong> | Qty: <strong style={{color: '#334155'}}>{item.quantity}</strong>
+        {isOwn && !item.approved && <span style={{ color: '#dc2626', marginLeft: '10px' }}>⏳ Pending Approval</span>}
       </div>
       <p style={{ color: '#475569', fontSize: '1.1rem', lineHeight: '1.6', margin: '0 0 12px 0' }}>{item.description}</p>
       {!isOwn && (
@@ -178,7 +261,7 @@ function App() {
                   <h3 style={{ margin: 0, fontSize: '1.8rem', color: '#1e293b' }}>My Listings</h3>
                   <button onClick={() => setShowCreate(true)} style={{ backgroundColor: '#2563eb', color: 'white', border: 'none', padding: '12px 24px', borderRadius: '10px', cursor: 'pointer', fontSize: '1.1rem', fontWeight: '600' }}>+ Create New</button>
                 </div>
-                {myListings.map(item => <ListingBox key={item.id} item={item} isOwn={true} />)}
+                {myListings.map(item => <ListingBox key={item.id} item={item} isOwn={true} onEdit={startEdit} onDelete={handleDeleteListing} />)}
                 {myListings.length === 0 && <p style={{ fontSize: '1.2rem', color: '#94a3b8' }}>No personal listings yet.</p>}
               </div>
 
@@ -258,8 +341,8 @@ function App() {
             </div>
           ) : (
             <div style={{ maxWidth: '800px', margin: '0 auto', padding: '1rem 0' }}>
-              <h3 style={{ fontSize: '2.2rem', marginBottom: '2rem', textAlign: 'center' }}>Create New Listing</h3>
-              <form onSubmit={handleCreateListing}>
+              <h3 style={{ fontSize: '2.2rem', marginBottom: '2rem', textAlign: 'center' }}>{editingListing ? 'Edit Listing' : 'Create New Listing'}</h3>
+              <form onSubmit={editingListing ? handleEditListing : handleCreateListing}>
                 <label style={labelStyle}>Device Title</label>
                 <input required placeholder="What are you listing?" style={inputStyle} value={newListing.title} onChange={(e) => setNewListing({...newListing, title: e.target.value})} />
                 
@@ -291,8 +374,8 @@ function App() {
                 <textarea required placeholder="Tell us about the device..." style={{ ...inputStyle, height: '150px' }} value={newListing.description} onChange={(e) => setNewListing({...newListing, description: e.target.value})} />
                 
                 <div style={{ display: 'flex', gap: '20px', marginTop: '1.5rem' }}>
-                  <button type="submit" style={{ flex: 2, padding: '20px', backgroundColor: '#059669', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer', fontSize: '1.3rem', fontWeight: '700' }}>Publish Listing</button>
-                  <button type="button" onClick={() => setShowCreate(false)} style={{ flex: 1, padding: '20px', backgroundColor: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '12px', cursor: 'pointer', fontSize: '1.3rem', fontWeight: '600' }}>Cancel</button>
+                  <button type="submit" style={{ flex: 2, padding: '20px', backgroundColor: '#059669', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer', fontSize: '1.3rem', fontWeight: '700' }}>{editingListing ? 'Update Listing' : 'Publish Listing'}</button>
+                  <button type="button" onClick={() => { setShowCreate(false); setEditingListing(null); setNewListing({ title: '', description: '', category: 'Laptop', condition: 'Good', quantity: 1 }); }} style={{ flex: 1, padding: '20px', backgroundColor: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '12px', cursor: 'pointer', fontSize: '1.3rem', fontWeight: '600' }}>Cancel</button>
                 </div>
               </form>
             </div>

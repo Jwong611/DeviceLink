@@ -87,6 +87,13 @@ class ListingCreate(BaseModel):
     quantity: int
     owner: str
 
+class ListingUpdate(BaseModel):
+    title: str
+    description: str
+    category: str
+    condition: str
+    quantity: int
+
 class UserWarningCreate(BaseModel):
     username: str
     reason: str
@@ -211,7 +218,7 @@ def create_listing(listing: ListingCreate):
         condition=listing.condition,
         quantity=listing.quantity,
         owner=listing.owner,
-        approved=True
+        approved=False
     )
     db.add(new_listing)
     db.commit()
@@ -226,6 +233,59 @@ def create_listing(listing: ListingCreate):
     db.commit()
     db.close()
     return new_listing
+
+@app.put("/listings/{listing_id}")
+def update_listing(listing_id: int, listing: ListingUpdate, username: str):
+    db = SessionLocal()
+    db_listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if not db_listing:
+        db.close()
+        raise HTTPException(status_code=404, detail="Listing not found")
+    if db_listing.owner != username:
+        db.close()
+        raise HTTPException(status_code=403, detail="Not authorized to edit this listing")
+    
+    db_listing.title = listing.title
+    db_listing.description = listing.description
+    db_listing.category = listing.category
+    db_listing.condition = listing.condition
+    db_listing.quantity = listing.quantity
+    db.commit()
+    db.refresh(db_listing)
+    
+    log_entry = ActivityLog(
+        action="listing_updated",
+        username=username,
+        details=f"Updated listing: {listing.title}"
+    )
+    db.add(log_entry)
+    db.commit()
+    db.close()
+    return db_listing
+
+@app.delete("/listings/{listing_id}")
+def delete_listing(listing_id: int, username: str):
+    db = SessionLocal()
+    db_listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if not db_listing:
+        db.close()
+        raise HTTPException(status_code=404, detail="Listing not found")
+    if db_listing.owner != username:
+        db.close()
+        raise HTTPException(status_code=403, detail="Not authorized to delete this listing")
+    
+    db.delete(db_listing)
+    db.commit()
+    
+    log_entry = ActivityLog(
+        action="listing_deleted",
+        username=username,
+        details=f"Deleted listing: {db_listing.title}"
+    )
+    db.add(log_entry)
+    db.commit()
+    db.close()
+    return {"message": "Listing deleted"}
 
 # ========== ADMIN ENDPOINTS ==========
 

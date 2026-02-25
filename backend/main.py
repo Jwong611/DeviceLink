@@ -31,6 +31,7 @@ class Listing(Base):
     condition = Column(String)
     quantity = Column(Integer)
     owner = Column(String)
+    status = Column(String, default='ACTIVE')  # ACTIVE, DELETED, COMPLETED
     approved = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -86,6 +87,7 @@ class ListingCreate(BaseModel):
     condition: str
     quantity: int
     owner: str
+    status: str = 'ACTIVE'
 
 class ListingUpdate(BaseModel):
     title: str
@@ -93,6 +95,7 @@ class ListingUpdate(BaseModel):
     category: str
     condition: str
     quantity: int
+    status: str = 'ACTIVE'
 
 class UserWarningCreate(BaseModel):
     username: str
@@ -155,11 +158,15 @@ def get_listings(
     db = SessionLocal()
     query = db.query(Listing)
 
-    # If viewing own listings, show all; otherwise only approved
+    # If viewing own listings, show all; otherwise only approved listings that are not DELETED/COMPLETED
     if own_username:
         query = query.filter(Listing.owner == own_username)
-    elif approved:
+    else:
         query = query.filter(Listing.approved == True)
+        # Filter out DELETED and COMPLETED listings, but handle cases where status might be null
+        query = query.filter(
+            or_(Listing.status.is_(None), Listing.status == 'ACTIVE')
+        )
 
     if q:
         like_term = f"%{q}%"
@@ -194,6 +201,7 @@ def get_listings(
             "condition": l.condition,
             "quantity": l.quantity,
             "owner": l.owner,
+            "status": getattr(l, 'status', 'ACTIVE'),  # Handle case where status column might not exist
             "approved": l.approved,
             "created_at": l.created_at.isoformat() if l.created_at else None,
         }
@@ -218,6 +226,7 @@ def create_listing(listing: ListingCreate):
         condition=listing.condition,
         quantity=listing.quantity,
         owner=listing.owner,
+        status=listing.status,
         approved=False
     )
     db.add(new_listing)
@@ -245,18 +254,25 @@ def update_listing(listing_id: int, listing: ListingUpdate, username: str):
         db.close()
         raise HTTPException(status_code=403, detail="Not authorized to edit this listing")
     
+    # Validate status transition
+    valid_statuses = ['ACTIVE', 'DELETED', 'COMPLETED']
+    if listing.status not in valid_statuses:
+        db.close()
+        raise HTTPException(status_code=400, detail="Invalid status. Must be ACTIVE, DELETED, or COMPLETED")
+    
     db_listing.title = listing.title
     db_listing.description = listing.description
     db_listing.category = listing.category
     db_listing.condition = listing.condition
     db_listing.quantity = listing.quantity
+    db_listing.status = listing.status
     db.commit()
     db.refresh(db_listing)
     
     log_entry = ActivityLog(
         action="listing_updated",
         username=username,
-        details=f"Updated listing: {listing.title}"
+        details=f"Updated listing: {listing.title} (status: {listing.status})"
     )
     db.add(log_entry)
     db.commit()
@@ -275,7 +291,6 @@ def delete_listing(listing_id: int, username: str):
         raise HTTPException(status_code=403, detail="Not authorized to delete this listing")
     
     db.delete(db_listing)
-    db.commit()
     
     log_entry = ActivityLog(
         action="listing_deleted",
@@ -285,7 +300,7 @@ def delete_listing(listing_id: int, username: str):
     db.add(log_entry)
     db.commit()
     db.close()
-    return {"message": "Listing deleted"}
+    return {"message": "Listing deleted successfully"}
 
 # ========== ADMIN ENDPOINTS ==========
 

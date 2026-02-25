@@ -10,7 +10,6 @@ function App() {
   const [formData, setFormData] = useState({ username: '', password: '' });
   const [listings, setListings] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
-  const [editingListing, setEditingListing] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterCondition, setFilterCondition] = useState('');
@@ -21,8 +20,10 @@ function App() {
     description: '', 
     category: 'Laptop', 
     condition: 'Good', 
-    quantity: 1 
+    quantity: 1,
+    status: 'ACTIVE'
   });
+  const [editingListingId, setEditingListingId] = useState(null);
 
   // --- Auth Logic ---
   const handleAuth = async (endpoint) => {
@@ -60,11 +61,16 @@ function App() {
   };
 
   const fetchListings = async () => {
+    console.log('fetchListings called, username:', formData.username);
     try {
       // Fetch user's own listings (including unapproved)
-      const ownRes = await fetch(`${API_BASE}/listings?own_username=${formData.username}`);
+      const ownUrl = `${API_BASE}/listings?own_username=${formData.username}`;
+      console.log('Fetching own listings:', ownUrl);
+      const ownRes = await fetch(ownUrl);
+      console.log('Own response status:', ownRes.status, ownRes.ok);
       const ownData = ownRes.ok ? await ownRes.json() : { items: [] };
       const ownListings = ownData.items || [];
+      console.log('Own listings:', ownListings);
 
       // Build query string for public listings with filters
       let publicQuery = `${API_BASE}/listings?approved=true`;
@@ -74,74 +80,122 @@ function App() {
       if (filterMinQty) publicQuery += `&min_quantity=${filterMinQty}`;
       if (filterMaxQty) publicQuery += `&max_quantity=${filterMaxQty}`;
 
+      console.log('Fetching public listings:', publicQuery);
       const publicRes = await fetch(publicQuery);
+      console.log('Public response status:', publicRes.status, publicRes.ok);
       const publicData = publicRes.ok ? await publicRes.json() : { items: [] };
       const publicListings = (publicData.items || []).filter(l => l.owner !== formData.username);
+      console.log('Public listings:', publicListings);
 
       // Combine all listings
-      setListings([...ownListings, ...publicListings]);
-    } catch (err) { console.error(err); }
+      const allListings = [...ownListings, ...publicListings];
+      console.log('All listings:', allListings);
+      setListings(allListings);
+    } catch (err) { 
+      console.error('Error in fetchListings:', err); 
+    }
   };
 
   const handleCreateListing = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${API_BASE}/listings`, {
-        method: 'POST',
+      const isEditing = editingListingId !== null;
+      const method = isEditing ? 'PUT' : 'POST';
+      const url = isEditing ? `${API_BASE}/listings/${editingListingId}?username=${formData.username}` : `${API_BASE}/listings`;
+      
+      const response = await fetch(url, {
+        method: method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...newListing, owner: formData.username }),
+        body: JSON.stringify(isEditing ? newListing : { ...newListing, owner: formData.username }),
       });
+      
       if (response.ok) {
-        setNewListing({ title: '', description: '', category: 'Laptop', condition: 'Good', quantity: 1 });
+        setNewListing({ title: '', description: '', category: 'Laptop', condition: 'Good', quantity: 1, status: 'ACTIVE' });
         setShowCreate(false);
+        setEditingListingId(null);
         fetchListings();
+      } else {
+        alert(`Failed to ${isEditing ? 'update' : 'create'} listing`);
       }
-    } catch (err) { alert("Failed to create listing"); }
+    } catch (err) { 
+      alert(`Failed to ${editingListingId ? 'update' : 'create'} listing`); 
+    }
   };
 
-  const handleEditListing = async (e) => {
-    e.preventDefault();
+  const handleStatusUpdate = async (listingId, newStatus) => {
+    console.log('handleStatusUpdate called:', listingId, newStatus);
+    // Find the listing to get current values
+    const listing = listings.find(l => l.id === listingId);
+    console.log('Found listing:', listing);
+    if (!listing) {
+      console.error('Listing not found');
+      return;
+    }
+    
     try {
-      const response = await fetch(`${API_BASE}/listings/${editingListing.id}?username=${formData.username}`, {
+      const updateData = {
+        title: listing.title,
+        description: listing.description,
+        category: listing.category,
+        condition: listing.condition,
+        quantity: listing.quantity,
+        status: newStatus
+      };
+      console.log('Sending update data:', updateData);
+      
+      const response = await fetch(`${API_BASE}/listings/${listingId}?username=${formData.username}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newListing),
+        body: JSON.stringify(updateData),
       });
+      
+      console.log('Update response status:', response.status, response.ok);
+      
       if (response.ok) {
-        setNewListing({ title: '', description: '', category: 'Laptop', condition: 'Good', quantity: 1 });
-        setEditingListing(null);
-        setShowCreate(false);
+        console.log('Status update successful, fetching listings...');
         fetchListings();
       } else {
-        alert("Failed to update listing");
+        const errorText = await response.text();
+        console.error('Failed to update status:', errorText);
+        alert("Failed to update status: " + errorText);
       }
-    } catch (err) { alert("Failed to update listing"); }
+    } catch (err) {
+      console.error('Error updating status:', err);
+      alert("Failed to update status: " + err.message);
+    }
   };
 
-  const handleDeleteListing = async (listingId) => {
-    if (!confirm("Are you sure you want to delete this listing?")) return;
-    try {
-      const response = await fetch(`${API_BASE}/listings/${listingId}?username=${formData.username}`, {
-        method: 'DELETE',
-      });
-      if (response.ok) {
-        fetchListings();
-      } else {
-        alert("Failed to delete listing");
-      }
-    } catch (err) { alert("Failed to delete listing"); }
-  };
-
-  const startEdit = (listing) => {
-    setEditingListing(listing);
+  const handleEditListing = (listing) => {
     setNewListing({
       title: listing.title,
       description: listing.description,
       category: listing.category,
       condition: listing.condition,
-      quantity: listing.quantity
+      quantity: listing.quantity,
+      status: listing.status
     });
+    setEditingListingId(listing.id);
     setShowCreate(true);
+  };
+
+  const handleDeleteListing = async (listingId) => {
+    if (!confirm('Are you sure you want to delete this listing? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`${API_BASE}/listings/${listingId}?username=${formData.username}`, {
+        method: 'DELETE',
+      });
+      
+      if (response.ok) {
+        fetchListings();
+      } else {
+        alert("Failed to delete listing");
+      }
+    } catch (err) {
+      alert("Failed to delete listing");
+    }
   };
 
   useEffect(() => { if (isLoggedIn) fetchListings(); }, [isLoggedIn]);
@@ -173,7 +227,7 @@ function App() {
   const labelStyle = { fontSize: '1.1rem', fontWeight: '600', color: '#64748b' };
 
   // --- Sub-Components ---
-  const ListingBox = ({ item, isOwn, onEdit, onDelete }) => (
+  const ListingBox = ({ item, isOwn }) => (
     <div style={{ 
       border: '1px solid #f1f5f9', padding: '1.5rem', borderRadius: '12px', 
       backgroundColor: isOwn ? '#eff6ff' : '#ffffff', marginBottom: '15px',
@@ -181,52 +235,83 @@ function App() {
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
         <h4 style={{ margin: 0, color: '#1e293b', fontSize: '1.3rem' }}>{item.title}</h4>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ 
-            fontSize: '0.9rem', padding: '4px 12px', borderRadius: '12px', 
-            backgroundColor: isOwn ? '#dbeafe' : '#f1f5f9', color: '#475569', fontWeight: '700'
-          }}>{item.category}</span>
-          {isOwn && (
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <button 
-                onClick={() => onEdit(item)} 
-                style={{ 
-                  padding: '4px 8px', 
-                  backgroundColor: '#2563eb', 
-                  color: 'white', 
-                  border: 'none', 
-                  borderRadius: '6px', 
-                  cursor: 'pointer', 
-                  fontSize: '0.8rem',
-                  fontWeight: '600'
-                }}
-              >
-                Edit
-              </button>
-              <button 
-                onClick={() => onDelete(item.id)} 
-                style={{ 
-                  padding: '4px 8px', 
-                  backgroundColor: '#dc2626', 
-                  color: 'white', 
-                  border: 'none', 
-                  borderRadius: '6px', 
-                  cursor: 'pointer', 
-                  fontSize: '0.8rem',
-                  fontWeight: '600'
-                }}
-              >
-                Delete
-              </button>
-            </div>
-          )}
-        </div>
+        <span style={{ 
+          fontSize: '0.9rem', padding: '4px 12px', borderRadius: '12px', 
+          backgroundColor: isOwn ? '#dbeafe' : '#f1f5f9', color: '#475569', fontWeight: '700'
+        }}>{item.category}</span>
       </div>
       <div style={{ fontSize: '1rem', color: '#64748b', marginBottom: '10px' }}>
         Condition: <strong style={{color: '#334155'}}>{item.condition}</strong> | Qty: <strong style={{color: '#334155'}}>{item.quantity}</strong>
-        {isOwn && !item.approved && <span style={{ color: '#dc2626', marginLeft: '10px' }}>⏳ Pending Approval</span>}
+        {isOwn && (
+          <span style={{ 
+            marginLeft: '10px', 
+            padding: '2px 8px', 
+            borderRadius: '8px', 
+            fontSize: '0.8rem',
+            fontWeight: '600',
+            backgroundColor: (item.status === 'ACTIVE' || !item.status) ? '#dcfce7' : item.status === 'COMPLETED' ? '#fef3c7' : '#fee2e2',
+            color: (item.status === 'ACTIVE' || !item.status) ? '#166534' : item.status === 'COMPLETED' ? '#92400e' : '#991b1b'
+          }}>
+            {item.status || 'ACTIVE'}
+          </span>
+        )}
       </div>
       <p style={{ color: '#475569', fontSize: '1.1rem', lineHeight: '1.6', margin: '0 0 12px 0' }}>{item.description}</p>
+      {isOwn && (
+        <div style={{ marginBottom: '12px', padding: '10px', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
+          <label style={{ fontSize: '0.9rem', fontWeight: '600', color: '#475569', display: 'block', marginBottom: '6px' }}>Update Status:</label>
+          <select 
+            value={item.status || 'ACTIVE'} 
+            onChange={(e) => handleStatusUpdate(item.id, e.target.value)}
+            style={{ 
+              padding: '6px 12px', 
+              borderRadius: '6px', 
+              border: '1px solid #d1d5db', 
+              fontSize: '0.9rem',
+              backgroundColor: 'white',
+              cursor: 'pointer'
+            }}
+          >
+            <option value="ACTIVE">Active - Visible to everyone</option>
+            <option value="COMPLETED">Completed - Donation completed</option>
+            <option value="DELETED">Deleted - Hidden from public</option>
+          </select>
+        </div>
+      )}
+      {isOwn && (
+        <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+          <button 
+            onClick={() => handleEditListing(item)}
+            style={{ 
+              backgroundColor: '#2563eb', 
+              color: 'white', 
+              border: 'none', 
+              padding: '8px 16px', 
+              borderRadius: '6px', 
+              cursor: 'pointer', 
+              fontSize: '0.9rem',
+              fontWeight: '600'
+            }}
+          >
+            Edit Details
+          </button>
+          <button 
+            onClick={() => handleDeleteListing(item.id)}
+            style={{ 
+              backgroundColor: '#dc2626', 
+              color: 'white', 
+              border: 'none', 
+              padding: '8px 16px', 
+              borderRadius: '6px', 
+              cursor: 'pointer', 
+              fontSize: '0.9rem',
+              fontWeight: '600'
+            }}
+          >
+            Delete Listing
+          </button>
+        </div>
+      )}
       {!isOwn && (
         <div style={{ fontSize: '0.95rem', color: '#94a3b8', borderTop: '1px solid #f1f5f9', paddingTop: '10px', marginTop: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span>👤 Posted by:</span>
@@ -261,7 +346,7 @@ function App() {
                   <h3 style={{ margin: 0, fontSize: '1.8rem', color: '#1e293b' }}>My Listings</h3>
                   <button onClick={() => setShowCreate(true)} style={{ backgroundColor: '#2563eb', color: 'white', border: 'none', padding: '12px 24px', borderRadius: '10px', cursor: 'pointer', fontSize: '1.1rem', fontWeight: '600' }}>+ Create New</button>
                 </div>
-                {myListings.map(item => <ListingBox key={item.id} item={item} isOwn={true} onEdit={startEdit} onDelete={handleDeleteListing} />)}
+                {myListings.map(item => <ListingBox key={item.id} item={item} isOwn={true} />)}
                 {myListings.length === 0 && <p style={{ fontSize: '1.2rem', color: '#94a3b8' }}>No personal listings yet.</p>}
               </div>
 
@@ -341,8 +426,10 @@ function App() {
             </div>
           ) : (
             <div style={{ maxWidth: '800px', margin: '0 auto', padding: '1rem 0' }}>
-              <h3 style={{ fontSize: '2.2rem', marginBottom: '2rem', textAlign: 'center' }}>{editingListing ? 'Edit Listing' : 'Create New Listing'}</h3>
-              <form onSubmit={editingListing ? handleEditListing : handleCreateListing}>
+              <h3 style={{ fontSize: '2.2rem', marginBottom: '2rem', textAlign: 'center' }}>
+                {editingListingId ? 'Edit Listing' : 'Create New Listing'}
+              </h3>
+              <form onSubmit={handleCreateListing}>
                 <label style={labelStyle}>Device Title</label>
                 <input required placeholder="What are you listing?" style={inputStyle} value={newListing.title} onChange={(e) => setNewListing({...newListing, title: e.target.value})} />
                 
@@ -370,12 +457,21 @@ function App() {
                 <label style={labelStyle}>Quantity</label>
                 <input type="number" required style={inputStyle} min="1" value={newListing.quantity} onChange={(e) => setNewListing({...newListing, quantity: parseInt(e.target.value) || 1})} />
                 
+                <label style={labelStyle}>Status</label>
+                <select style={inputStyle} value={newListing.status} onChange={(e) => setNewListing({...newListing, status: e.target.value})}>
+                  <option value="ACTIVE">Active - Visible to everyone</option>
+                  <option value="COMPLETED">Completed - Donation completed</option>
+                  <option value="DELETED">Deleted - Hidden from public</option>
+                </select>
+                
                 <label style={labelStyle}>Description</label>
                 <textarea required placeholder="Tell us about the device..." style={{ ...inputStyle, height: '150px' }} value={newListing.description} onChange={(e) => setNewListing({...newListing, description: e.target.value})} />
                 
                 <div style={{ display: 'flex', gap: '20px', marginTop: '1.5rem' }}>
-                  <button type="submit" style={{ flex: 2, padding: '20px', backgroundColor: '#059669', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer', fontSize: '1.3rem', fontWeight: '700' }}>{editingListing ? 'Update Listing' : 'Publish Listing'}</button>
-                  <button type="button" onClick={() => { setShowCreate(false); setEditingListing(null); setNewListing({ title: '', description: '', category: 'Laptop', condition: 'Good', quantity: 1 }); }} style={{ flex: 1, padding: '20px', backgroundColor: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '12px', cursor: 'pointer', fontSize: '1.3rem', fontWeight: '600' }}>Cancel</button>
+                  <button type="submit" style={{ flex: 2, padding: '20px', backgroundColor: '#059669', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer', fontSize: '1.3rem', fontWeight: '700' }}>
+                    {editingListingId ? 'Update Listing' : 'Publish Listing'}
+                  </button>
+                  <button type="button" onClick={() => { setShowCreate(false); setNewListing({ title: '', description: '', category: 'Laptop', condition: 'Good', quantity: 1, status: 'ACTIVE' }); setEditingListingId(null); }} style={{ flex: 1, padding: '20px', backgroundColor: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '12px', cursor: 'pointer', fontSize: '1.3rem', fontWeight: '600' }}>Cancel</button>
                 </div>
               </form>
             </div>

@@ -21,7 +21,7 @@ function App() {
     category: 'Laptop', 
     condition: 'Good', 
     quantity: 1,
-    status: 'ACTIVE'
+    status: 'PENDING'
   });
   const [editingListingId, setEditingListingId] = useState(null);
 
@@ -110,7 +110,7 @@ function App() {
       });
       
       if (response.ok) {
-        setNewListing({ title: '', description: '', category: 'Laptop', condition: 'Good', quantity: 1, status: 'ACTIVE' });
+        setNewListing({ title: '', description: '', category: 'Laptop', condition: 'Good', quantity: 1, status: 'PENDING' });
         setShowCreate(false);
         setEditingListingId(null);
         fetchListings();
@@ -249,15 +249,21 @@ function App() {
             borderRadius: '8px', 
             fontSize: '0.8rem',
             fontWeight: '600',
-            backgroundColor: (item.status === 'ACTIVE' || !item.status) ? '#dcfce7' : item.status === 'COMPLETED' ? '#fef3c7' : '#fee2e2',
-            color: (item.status === 'ACTIVE' || !item.status) ? '#166534' : item.status === 'COMPLETED' ? '#92400e' : '#991b1b'
+            backgroundColor: item.approved ? (
+              (item.status === 'ACTIVE' || !item.status) ? '#dcfce7' : 
+              item.status === 'COMPLETED' ? '#fef3c7' : '#fee2e2'
+            ) : '#e2e8f0',
+            color: item.approved ? (
+              (item.status === 'ACTIVE' || !item.status) ? '#166534' : 
+              item.status === 'COMPLETED' ? '#92400e' : '#991b1b'
+            ) : '#64748b'
           }}>
-            {item.status || 'ACTIVE'}
+            {item.approved ? (item.status || 'ACTIVE') : 'PENDING APPROVAL'}
           </span>
         )}
       </div>
       <p style={{ color: '#475569', fontSize: '1.1rem', lineHeight: '1.6', margin: '0 0 12px 0' }}>{item.description}</p>
-      {isOwn && (
+      {isOwn && item.approved && (
         <div style={{ marginBottom: '12px', padding: '10px', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
           <label style={{ fontSize: '0.9rem', fontWeight: '600', color: '#475569', display: 'block', marginBottom: '6px' }}>Update Status:</label>
           <select 
@@ -471,7 +477,7 @@ function App() {
                   <button type="submit" style={{ flex: 2, padding: '20px', backgroundColor: '#059669', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer', fontSize: '1.3rem', fontWeight: '700' }}>
                     {editingListingId ? 'Update Listing' : 'Publish Listing'}
                   </button>
-                  <button type="button" onClick={() => { setShowCreate(false); setNewListing({ title: '', description: '', category: 'Laptop', condition: 'Good', quantity: 1, status: 'ACTIVE' }); setEditingListingId(null); }} style={{ flex: 1, padding: '20px', backgroundColor: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '12px', cursor: 'pointer', fontSize: '1.3rem', fontWeight: '600' }}>Cancel</button>
+                  <button type="button" onClick={() => { setShowCreate(false); setNewListing({ title: '', description: '', category: 'Laptop', condition: 'Good', quantity: 1, status: 'PENDING' }); setEditingListingId(null); }} style={{ flex: 1, padding: '20px', backgroundColor: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '12px', cursor: 'pointer', fontSize: '1.3rem', fontWeight: '600' }}>Cancel</button>
                 </div>
               </form>
             </div>

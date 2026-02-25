@@ -31,7 +31,7 @@ class Listing(Base):
     condition = Column(String)
     quantity = Column(Integer)
     owner = Column(String)
-    status = Column(String, default='ACTIVE')  # ACTIVE, DELETED, COMPLETED
+    status = Column(String, default='PENDING')  # PENDING, ACTIVE, DELETED, COMPLETED
     approved = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -87,7 +87,7 @@ class ListingCreate(BaseModel):
     condition: str
     quantity: int
     owner: str
-    status: str = 'ACTIVE'
+    status: str = 'PENDING'
 
 class ListingUpdate(BaseModel):
     title: str
@@ -400,6 +400,8 @@ def approve_listing(admin_username: str, approval: ListingApprovalUpdate):
         raise HTTPException(status_code=404, detail="Listing not found")
 
     listing.approved = approval.approved
+    if approval.approved:
+        listing.status = "ACTIVE"
     db.commit()
 
     status = "approved" if approval.approved else "rejected"

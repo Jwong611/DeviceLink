@@ -181,12 +181,12 @@ function Admin({ username, onLogout }) {
     transition: 'all 0.2s',
   });
 
-  const listingBoxStyle = (approved) => ({
+  const listingBoxStyle = (status) => ({
     border: '1px solid #e2e8f0',
     padding: '1.5rem',
     borderRadius: '12px',
     marginBottom: '1rem',
-    backgroundColor: approved ? '#dcfce7' : '#fef3c7',
+    backgroundColor: status === 'ACTIVE' ? '#dcfce7' : status === 'REJECTED' ? '#fee2e2' : '#fef3c7',
     boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
   });
 
@@ -344,7 +344,7 @@ function Admin({ username, onLogout }) {
         <p>Loading...</p>
       ) : (
         listings.map((listing) => (
-          <div key={listing.id} style={listingBoxStyle(listing.approved)}>
+          <div key={listing.id} style={listingBoxStyle(listing.status)}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
               <div>
                 <h4 style={{ margin: '0 0 0.5rem 0', color: '#1e293b' }}>{listing.title}</h4>
@@ -361,15 +361,15 @@ function Admin({ username, onLogout }) {
                   borderRadius: '6px',
                   fontSize: '0.85rem',
                   fontWeight: '600',
-                  backgroundColor: listing.approved ? '#d1fae5' : '#fef3c7',
-                  color: listing.approved ? '#065f46' : '#92400e',
+                  backgroundColor: listing.status === 'ACTIVE' ? '#d1fae5' : listing.status === 'REJECTED' ? '#f3f4f6' : '#fef3c7',
+                  color: listing.status === 'ACTIVE' ? '#065f46' : listing.status === 'REJECTED' ? '#dc2626' : '#92400e',
                 }}
               >
-                {listing.approved ? '✓ Approved' : '⏳ Pending'}
+                {listing.status === 'ACTIVE' ? '✓ Approved' : listing.status === 'REJECTED' ? '✕ Rejected' : '⏳ Pending'}
               </span>
             </div>
 
-            {!listing.approved && (
+            {listing.status === 'PENDING' && (
               <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
                 <button
                   onClick={() => handleApproveListing(listing.id, true)}

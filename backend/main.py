@@ -326,7 +326,7 @@ def get_all_listings_admin():
     db = SessionLocal()
     listings = db.query(Listing).all()
     db.close()
-    return [{"id": l.id, "title": l.title, "owner": l.owner, "approved": l.approved, "category": l.category, "created_at": l.created_at} for l in listings]
+    return [{"id": l.id, "title": l.title, "owner": l.owner, "approved": l.approved, "status": l.status, "category": l.category, "created_at": l.created_at} for l in listings]
 
 @app.post("/admin/warning")
 def issue_warning(admin_username: str, warning: UserWarningCreate):
@@ -403,6 +403,8 @@ def approve_listing(admin_username: str, approval: ListingApprovalUpdate):
     listing.approved = approval.approved
     if approval.approved:
         listing.status = "ACTIVE"
+    else:
+        listing.status = "REJECTED"
     db.commit()
 
     status = "approved" if approval.approved else "rejected"

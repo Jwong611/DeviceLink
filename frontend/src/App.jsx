@@ -249,16 +249,16 @@ function App() {
             borderRadius: '8px', 
             fontSize: '0.8rem',
             fontWeight: '600',
-            backgroundColor: item.approved ? (
+            backgroundColor: item.status === 'REJECTED' ? '#fee2e2' : item.approved ? (
               (item.status === 'ACTIVE' || !item.status) ? '#dcfce7' : 
               item.status === 'COMPLETED' ? '#fef3c7' : '#fee2e2'
             ) : '#e2e8f0',
-            color: item.approved ? (
+            color: item.status === 'REJECTED' ? '#991b1b' : item.approved ? (
               (item.status === 'ACTIVE' || !item.status) ? '#166534' : 
               item.status === 'COMPLETED' ? '#92400e' : '#991b1b'
             ) : '#64748b'
           }}>
-            {item.approved ? (item.status || 'ACTIVE') : 'PENDING APPROVAL'}
+            {item.status === 'REJECTED' ? 'REJECTED' : item.approved ? (item.status || 'ACTIVE') : 'PENDING APPROVAL'}
           </span>
         )}
       </div>
@@ -284,38 +284,58 @@ function App() {
           </select>
         </div>
       )}
-      {isOwn && (
+      {isOwn && item.status !== 'REJECTED' && (
         <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-          <button 
-            onClick={() => handleEditListing(item)}
-            style={{ 
-              backgroundColor: '#2563eb', 
-              color: 'white', 
-              border: 'none', 
-              padding: '8px 16px', 
-              borderRadius: '6px', 
-              cursor: 'pointer', 
-              fontSize: '0.9rem',
-              fontWeight: '600'
-            }}
-          >
-            Edit Details
-          </button>
-          <button 
-            onClick={() => handleDeleteListing(item.id)}
-            style={{ 
-              backgroundColor: '#dc2626', 
-              color: 'white', 
-              border: 'none', 
-              padding: '8px 16px', 
-              borderRadius: '6px', 
-              cursor: 'pointer', 
-              fontSize: '0.9rem',
-              fontWeight: '600'
-            }}
-          >
-            Delete Listing
-          </button>
+          {item.status === 'PENDING' ? (
+            <button 
+              onClick={() => handleDeleteListing(item.id)}
+              style={{ 
+                backgroundColor: '#dc2626', 
+                color: 'white', 
+                border: 'none', 
+                padding: '8px 16px', 
+                borderRadius: '6px', 
+                cursor: 'pointer', 
+                fontSize: '0.9rem',
+                fontWeight: '600'
+              }}
+            >
+              Delete Listing
+            </button>
+          ) : (
+            <>
+              <button 
+                onClick={() => handleEditListing(item)}
+                style={{ 
+                  backgroundColor: '#2563eb', 
+                  color: 'white', 
+                  border: 'none', 
+                  padding: '8px 16px', 
+                  borderRadius: '6px', 
+                  cursor: 'pointer', 
+                  fontSize: '0.9rem',
+                  fontWeight: '600'
+                }}
+              >
+                Edit Details
+              </button>
+              <button 
+                onClick={() => handleDeleteListing(item.id)}
+                style={{ 
+                  backgroundColor: '#dc2626', 
+                  color: 'white', 
+                  border: 'none', 
+                  padding: '8px 16px', 
+                  borderRadius: '6px', 
+                  cursor: 'pointer', 
+                  fontSize: '0.9rem',
+                  fontWeight: '600'
+                }}
+              >
+                Delete Listing
+              </button>
+            </>
+          )}
         </div>
       )}
       {!isOwn && (

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 const API_BASE = "http://localhost:8000";
 
-function Admin({ username, onLogout }) {
+function Admin({ username, onLogout, themeMode = 'light', onToggleTheme }) {
   const [activeTab, setActiveTab] = useState('accounts');
   const [users, setUsers] = useState([]);
   const [listings, setListings] = useState([]);
@@ -11,6 +11,28 @@ function Admin({ username, onLogout }) {
   const [userWarnings, setUserWarnings] = useState([]);
   const [warningReason, setWarningReason] = useState('');
   const [loading, setLoading] = useState(false);
+  const isDarkMode = themeMode === 'dark';
+  const theme = isDarkMode
+    ? {
+      pageBg: '#0b1220',
+      surface: '#111827',
+      surfaceAlt: '#1f2937',
+      border: '#334155',
+      text: '#e5e7eb',
+      textMuted: '#9ca3af',
+      textStrong: '#f9fafb',
+      divider: '#1f2937',
+    }
+    : {
+      pageBg: '#f1f5f9',
+      surface: '#ffffff',
+      surfaceAlt: '#f8fafc',
+      border: '#e2e8f0',
+      text: '#334155',
+      textMuted: '#64748b',
+      textStrong: '#1e293b',
+      divider: '#f8fafc',
+    };
 
   // Fetch data based on active tab
   useEffect(() => {
@@ -131,33 +153,35 @@ function Admin({ username, onLogout }) {
     minHeight: '100vh',
     width: '100vw',
     fontFamily: 'system-ui, sans-serif',
-    backgroundColor: '#f1f5f9',
+    backgroundColor: theme.pageBg,
     paddingTop: '2vh',
+    color: theme.text,
   };
 
   const cardStyle = {
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
     padding: '2rem',
     borderRadius: '16px',
     boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)',
     width: '95%',
     maxWidth: '1400px',
     minHeight: '80vh',
+    border: `1px solid ${theme.border}`,
   };
 
   const tabsStyle = {
     display: 'flex',
     gap: '1rem',
     marginBottom: '2rem',
-    borderBottom: '2px solid #f8fafc',
+    borderBottom: `2px solid ${theme.divider}`,
     paddingBottom: '1rem',
   };
 
   const tabButtonStyle = (active) => ({
     padding: '12px 24px',
     border: 'none',
-    backgroundColor: active ? '#2563eb' : '#e2e8f0',
-    color: active ? '#fff' : '#475569',
+    backgroundColor: active ? '#2563eb' : theme.surfaceAlt,
+    color: active ? '#fff' : theme.text,
     borderRadius: '8px',
     cursor: 'pointer',
     fontSize: '1rem',
@@ -175,14 +199,14 @@ function Admin({ username, onLogout }) {
     padding: '1rem',
     borderRadius: '8px',
     cursor: 'pointer',
-    backgroundColor: selected ? '#dbeafe' : '#f8fafc',
-    border: selected ? '2px solid #2563eb' : '1px solid #e2e8f0',
+    backgroundColor: selected ? (isDarkMode ? '#1e3a5f' : '#dbeafe') : theme.surfaceAlt,
+    border: selected ? '2px solid #2563eb' : `1px solid ${theme.border}`,
     marginBottom: '0.5rem',
     transition: 'all 0.2s',
   });
 
   const listingBoxStyle = (status) => ({
-    border: '1px solid #e2e8f0',
+    border: `1px solid ${theme.border}`,
     padding: '1.5rem',
     borderRadius: '12px',
     marginBottom: '1rem',
@@ -193,7 +217,7 @@ function Admin({ username, onLogout }) {
   const activityItemStyle = {
     padding: '1rem',
     borderRadius: '8px',
-    backgroundColor: '#f8fafc',
+    backgroundColor: theme.surfaceAlt,
     marginBottom: '0.5rem',
     borderLeft: '4px solid #2563eb',
   };
@@ -203,7 +227,7 @@ function Admin({ username, onLogout }) {
       primary: { backgroundColor: '#2563eb', color: '#fff' },
       danger: { backgroundColor: '#ef4444', color: '#fff' },
       success: { backgroundColor: '#059669', color: '#fff' },
-      secondary: { backgroundColor: '#e2e8f0', color: '#475569' },
+      secondary: { backgroundColor: theme.surfaceAlt, color: theme.text },
     };
     return {
       padding: '10px 16px',
@@ -222,11 +246,12 @@ function Admin({ username, onLogout }) {
     padding: '12px',
     margin: '8px 0 12px 0',
     borderRadius: '8px',
-    border: '2px solid #e2e8f0',
+    border: `2px solid ${theme.border}`,
+    backgroundColor: theme.surface,
     boxSizing: 'border-box',
     fontSize: '1rem',
     fontFamily: 'inherit',
-    color: '#334155',
+    color: theme.text,
   };
 
   // Render Accounts Tab
@@ -234,24 +259,24 @@ function Admin({ username, onLogout }) {
     <div style={contentWrapper}>
       {selectedUser && (
         <div style={{ minHeight: '400px' }}>
-          <h3 style={{ marginBottom: '1rem', fontSize: '1.3rem', color: '#1e293b' }}>
+          <h3 style={{ marginBottom: '1rem', fontSize: '1.3rem', color: theme.textStrong }}>
             {selectedUser.username}
           </h3>
 
-          <div style={{ marginBottom: '1.5rem', padding: '1rem', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
-            <p style={{ margin: '0.5rem 0', color: '#475569' }}>
+          <div style={{ marginBottom: '1.5rem', padding: '1rem', backgroundColor: theme.surfaceAlt, borderRadius: '8px' }}>
+            <p style={{ margin: '0.5rem 0', color: theme.text }}>
               <strong>Status:</strong> {selectedUser.is_suspended ? '🔴 Suspended' : '🟢 Active'}
             </p>
-            <p style={{ margin: '0.5rem 0', color: '#475569' }}>
+            <p style={{ margin: '0.5rem 0', color: theme.text }}>
               <strong>Warnings:</strong> {selectedUser.warning_count}
             </p>
-            <p style={{ margin: '0.5rem 0', color: '#475569' }}>
+            <p style={{ margin: '0.5rem 0', color: theme.text }}>
               <strong>Admin:</strong> {selectedUser.is_admin ? 'Yes' : 'No'}
             </p>
           </div>
 
           <div style={{ marginBottom: '1.5rem' }}>
-            <h4 style={{ marginBottom: '0.5rem', color: '#1e293b' }}>Issue Warning</h4>
+            <h4 style={{ marginBottom: '0.5rem', color: theme.textStrong }}>Issue Warning</h4>
             <textarea
               style={{ ...inputStyle, height: '80px' }}
               placeholder="Reason for warning..."
@@ -264,7 +289,7 @@ function Admin({ username, onLogout }) {
           </div>
 
           <div style={{ marginBottom: '1.5rem' }}>
-            <h4 style={{ marginBottom: '0.5rem', color: '#1e293b' }}>Account Status</h4>
+            <h4 style={{ marginBottom: '0.5rem', color: theme.textStrong }}>Account Status</h4>
             <button
               onClick={() =>
                 handleSuspendUser(selectedUser.username, !selectedUser.is_suspended)
@@ -281,7 +306,7 @@ function Admin({ username, onLogout }) {
 
           {userWarnings.length > 0 && (
             <div>
-              <h4 style={{ marginBottom: '0.5rem', color: '#1e293b' }}>Recent Warnings</h4>
+              <h4 style={{ marginBottom: '0.5rem', color: theme.textStrong }}>Recent Warnings</h4>
               {userWarnings.map((warning) => (
                 <div
                   key={warning.id}
@@ -308,7 +333,7 @@ function Admin({ username, onLogout }) {
       )}
 
       <div>
-        <h3 style={{ marginBottom: '1rem', fontSize: '1.3rem', color: '#1e293b' }}>
+        <h3 style={{ marginBottom: '1rem', fontSize: '1.3rem', color: theme.textStrong }}>
           Accounts
         </h3>
         {loading ? (
@@ -321,10 +346,10 @@ function Admin({ username, onLogout }) {
               onClick={() => handleSelectUser(user)}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                <strong style={{ color: '#1e293b' }}>{user.username}</strong>
+                <strong style={{ color: theme.textStrong }}>{user.username}</strong>
                 {user.is_admin && <span style={{ fontSize: '0.8rem', color: '#7c2d12', fontWeight: 'bold' }}>👑 ADMIN</span>}
               </div>
-              <p style={{ margin: '0.25rem 0', fontSize: '0.9rem', color: '#64748b' }}>
+              <p style={{ margin: '0.25rem 0', fontSize: '0.9rem', color: theme.textMuted }}>
                 {user.is_suspended ? '🔴 Suspended' : '🟢 Active'} • ⚠️ {user.warning_count} warnings
               </p>
             </div>
@@ -337,7 +362,7 @@ function Admin({ username, onLogout }) {
   // Render Listings Tab
   const renderListingsTab = () => (
     <div>
-      <h3 style={{ marginBottom: '1.5rem', fontSize: '1.3rem', color: '#1e293b' }}>
+      <h3 style={{ marginBottom: '1.5rem', fontSize: '1.3rem', color: theme.textStrong }}>
         Pending Moderation
       </h3>
       {loading ? (
@@ -347,11 +372,11 @@ function Admin({ username, onLogout }) {
           <div key={listing.id} style={listingBoxStyle(listing.status)}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
               <div>
-                <h4 style={{ margin: '0 0 0.5rem 0', color: '#1e293b' }}>{listing.title}</h4>
-                <p style={{ margin: '0.25rem 0', fontSize: '0.9rem', color: '#64748b' }}>
+                <h4 style={{ margin: '0 0 0.5rem 0', color: theme.textStrong }}>{listing.title}</h4>
+                <p style={{ margin: '0.25rem 0', fontSize: '0.9rem', color: theme.textMuted }}>
                   By: <strong>{listing.owner}</strong> • Category: <strong>{listing.category}</strong>
                 </p>
-                <p style={{ margin: '0.25rem 0', fontSize: '0.85rem', color: '#94a3b8' }}>
+                <p style={{ margin: '0.25rem 0', fontSize: '0.85rem', color: theme.textMuted }}>
                   {new Date(listing.created_at).toLocaleString()}
                 </p>
               </div>
@@ -394,7 +419,7 @@ function Admin({ username, onLogout }) {
   // Render Activity Tab
   const renderActivityTab = () => (
     <div>
-      <h3 style={{ marginBottom: '1.5rem', fontSize: '1.3rem', color: '#1e293b' }}>
+      <h3 style={{ marginBottom: '1.5rem', fontSize: '1.3rem', color: theme.textStrong }}>
         Platform Activity Log
       </h3>
       {loading ? (
@@ -403,17 +428,17 @@ function Admin({ username, onLogout }) {
         activityLogs.map((log) => (
           <div key={log.id} style={activityItemStyle}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-              <strong style={{ color: '#1e293b' }}>
+              <strong style={{ color: theme.textStrong }}>
                 {log.action.replace(/_/g, ' ').toUpperCase()}
               </strong>
-              <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
+              <span style={{ fontSize: '0.85rem', color: theme.textMuted }}>
                 {new Date(log.created_at).toLocaleString()}
               </span>
             </div>
-            <p style={{ margin: '0.5rem 0', color: '#475569' }}>
+            <p style={{ margin: '0.5rem 0', color: theme.text }}>
               <strong>User:</strong> {log.username}
             </p>
-            <p style={{ margin: '0.5rem 0', color: '#64748b', fontSize: '0.95rem' }}>
+            <p style={{ margin: '0.5rem 0', color: theme.textMuted, fontSize: '0.95rem' }}>
               {log.details}
             </p>
           </div>
@@ -424,10 +449,10 @@ function Admin({ username, onLogout }) {
 
   return (
     <div style={pageWrapper}>
-      <div style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '0.5rem', color: '#1e293b' }}>
+      <div style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '0.5rem', color: theme.textStrong }}>
         Admin Dashboard
       </div>
-      <div style={{ marginBottom: '2rem', color: '#64748b', fontSize: '1.1rem' }}>
+      <div style={{ marginBottom: '2rem', color: theme.textMuted, fontSize: '1.1rem' }}>
         Welcome, <strong>{username}</strong>
       </div>
 
@@ -438,24 +463,40 @@ function Admin({ username, onLogout }) {
             justifyContent: 'space-between',
             alignItems: 'center',
             marginBottom: '2rem',
-            borderBottom: '2px solid #f8fafc',
+            borderBottom: `2px solid ${theme.divider}`,
             paddingBottom: '1rem',
           }}
         >
-          <h2 style={{ fontSize: '1.8rem', margin: 0, color: '#1e293b' }}>Management Center</h2>
-          <button
-            onClick={onLogout}
-            style={{
-              cursor: 'pointer',
-              border: 'none',
-              background: 'none',
-              color: '#ef4444',
-              fontSize: '1.1rem',
-              fontWeight: '700',
-            }}
-          >
-            Logout
-          </button>
+          <h2 style={{ fontSize: '1.8rem', margin: 0, color: theme.textStrong }}>Management Center</h2>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <button
+              onClick={onToggleTheme}
+              style={{
+                cursor: 'pointer',
+                border: `1px solid ${theme.border}`,
+                background: theme.surfaceAlt,
+                color: theme.textStrong,
+                borderRadius: '8px',
+                padding: '8px 12px',
+                fontWeight: '700',
+              }}
+            >
+              {isDarkMode ? 'Light Mode' : 'Dark Mode'}
+            </button>
+            <button
+              onClick={onLogout}
+              style={{
+                cursor: 'pointer',
+                border: 'none',
+                background: 'none',
+                color: '#ef4444',
+                fontSize: '1.1rem',
+                fontWeight: '700',
+              }}
+            >
+              Logout
+            </button>
+          </div>
         </header>
 
         <div style={tabsStyle}>

@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, create_engine, or_
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, create_engine, or_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from pydantic import BaseModel, Field
@@ -50,6 +50,31 @@ class ActivityLog(Base):
     username = Column(String)
     details = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class ChatThread(Base):
+    __tablename__ = "chat_threads"
+    id = Column(Integer, primary_key=True, index=True)
+    listing_id = Column(Integer, index=True)
+    owner_username = Column(String, index=True)
+    participant_username = Column(String, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    id = Column(Integer, primary_key=True, index=True)
+    thread_id = Column(Integer, index=True)
+    sender_username = Column(String, index=True)
+    content = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class ChatReadState(Base):
+    __tablename__ = "chat_read_states"
+    id = Column(Integer, primary_key=True, index=True)
+    thread_id = Column(Integer, index=True)
+    username = Column(String, index=True)
+    last_read_message_id = Column(Integer, default=0)
+    updated_at = Column(DateTime, default=datetime.utcnow)
 
 Base.metadata.create_all(bind=engine)
 
@@ -108,6 +133,14 @@ class ListingApprovalUpdate(BaseModel):
 class UserSuspensionUpdate(BaseModel):
     username: str
     is_suspended: bool
+
+class ChatThreadCreate(BaseModel):
+    listing_id: int
+    username: str
+
+class ChatMessageCreate(BaseModel):
+    sender_username: str
+    content: str = Field(..., min_length=1, max_length=2000)
 
 @app.post("/register")
 def register(user: UserSchema):
@@ -431,3 +464,203 @@ def get_activity_logs(limit: int = 50):
     logs = db.query(ActivityLog).order_by(ActivityLog.created_at.desc()).limit(limit).all()
     db.close()
     return [{"id": l.id, "action": l.action, "username": l.username, "details": l.details, "created_at": l.created_at} for l in logs]
+
+# ========== CHAT ENDPOINTS ==========
+
+def _get_or_create_read_state(db, thread_id: int, username: str):
+    state = db.query(ChatReadState).filter(
+        ChatReadState.thread_id == thread_id,
+        ChatReadState.username == username
+    ).first()
+    if not state:
+        state = ChatReadState(
+            thread_id=thread_id,
+            username=username,
+            last_read_message_id=0,
+            updated_at=datetime.utcnow()
+        )
+        db.add(state)
+        db.commit()
+        db.refresh(state)
+    return state
+
+def _get_unread_count(db, thread_id: int, username: str):
+    state = _get_or_create_read_state(db, thread_id, username)
+    unread_count = db.query(ChatMessage).filter(
+        ChatMessage.thread_id == thread_id,
+        ChatMessage.id > state.last_read_message_id,
+        ChatMessage.sender_username != username
+    ).count()
+    return unread_count
+
+def _mark_thread_as_read(db, thread_id: int, username: str):
+    state = _get_or_create_read_state(db, thread_id, username)
+    latest_message = db.query(ChatMessage).filter(
+        ChatMessage.thread_id == thread_id
+    ).order_by(ChatMessage.id.desc()).first()
+    state.last_read_message_id = latest_message.id if latest_message else 0
+    state.updated_at = datetime.utcnow()
+    db.commit()
+
+def _thread_to_dict(db, thread: ChatThread, viewer_username: Optional[str] = None):
+    listing = db.query(Listing).filter(Listing.id == thread.listing_id).first()
+    unread_count = _get_unread_count(db, thread.id, viewer_username) if viewer_username else 0
+    return {
+        "id": thread.id,
+        "listing_id": thread.listing_id,
+        "listing_title": listing.title if listing else "Unknown listing",
+        "owner_username": thread.owner_username,
+        "participant_username": thread.participant_username,
+        "unread_count": unread_count,
+        "created_at": thread.created_at.isoformat() if thread.created_at else None,
+        "updated_at": thread.updated_at.isoformat() if thread.updated_at else None,
+    }
+
+def _assert_thread_access(thread: ChatThread, username: str):
+    if username not in [thread.owner_username, thread.participant_username]:
+        raise HTTPException(status_code=403, detail="Not authorized for this chat thread")
+
+@app.post("/chat/threads")
+def create_or_get_chat_thread(payload: ChatThreadCreate):
+    db = SessionLocal()
+    listing = db.query(Listing).filter(Listing.id == payload.listing_id).first()
+    if not listing:
+        db.close()
+        raise HTTPException(status_code=404, detail="Listing not found")
+
+    requester = db.query(User).filter(User.username == payload.username).first()
+    if not requester:
+        db.close()
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if payload.username == listing.owner:
+        db.close()
+        raise HTTPException(status_code=400, detail="Listing owner cannot create a chat with themselves")
+
+    thread = db.query(ChatThread).filter(
+        ChatThread.listing_id == payload.listing_id,
+        ChatThread.owner_username == listing.owner,
+        ChatThread.participant_username == payload.username
+    ).first()
+
+    if not thread:
+        thread = ChatThread(
+            listing_id=payload.listing_id,
+            owner_username=listing.owner,
+            participant_username=payload.username,
+            updated_at=datetime.utcnow()
+        )
+        db.add(thread)
+        db.commit()
+        db.refresh(thread)
+
+    # Ensure read-state rows exist for both participants.
+    _get_or_create_read_state(db, thread.id, thread.owner_username)
+    _get_or_create_read_state(db, thread.id, thread.participant_username)
+
+    result = _thread_to_dict(db, thread, payload.username)
+    db.close()
+    return result
+
+@app.get("/chat/threads")
+def get_chat_threads(username: str):
+    db = SessionLocal()
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        db.close()
+        raise HTTPException(status_code=404, detail="User not found")
+
+    threads = db.query(ChatThread).filter(
+        or_(
+            ChatThread.owner_username == username,
+            ChatThread.participant_username == username
+        )
+    ).order_by(ChatThread.updated_at.desc()).all()
+
+    result = [_thread_to_dict(db, t, username) for t in threads]
+    db.close()
+    return result
+
+@app.get("/chat/threads/{thread_id}/messages")
+def get_chat_messages(thread_id: int, username: str, after_id: Optional[int] = None, mark_read: bool = False):
+    db = SessionLocal()
+    thread = db.query(ChatThread).filter(ChatThread.id == thread_id).first()
+    if not thread:
+        db.close()
+        raise HTTPException(status_code=404, detail="Chat thread not found")
+
+    _assert_thread_access(thread, username)
+
+    query = db.query(ChatMessage).filter(ChatMessage.thread_id == thread_id)
+    if after_id is not None:
+        query = query.filter(ChatMessage.id > after_id)
+    messages = query.order_by(ChatMessage.created_at.asc()).all()
+
+    result = [
+        {
+            "id": m.id,
+            "thread_id": m.thread_id,
+            "sender_username": m.sender_username,
+            "content": m.content,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+        }
+        for m in messages
+    ]
+    if mark_read:
+        _mark_thread_as_read(db, thread_id, username)
+    db.close()
+    return result
+
+@app.post("/chat/threads/{thread_id}/read")
+def mark_chat_thread_read(thread_id: int, username: str):
+    db = SessionLocal()
+    thread = db.query(ChatThread).filter(ChatThread.id == thread_id).first()
+    if not thread:
+        db.close()
+        raise HTTPException(status_code=404, detail="Chat thread not found")
+
+    _assert_thread_access(thread, username)
+    _mark_thread_as_read(db, thread_id, username)
+    db.close()
+    return {"message": "Thread marked as read"}
+
+@app.post("/chat/threads/{thread_id}/messages")
+def send_chat_message(thread_id: int, username: str, payload: ChatMessageCreate):
+    db = SessionLocal()
+    thread = db.query(ChatThread).filter(ChatThread.id == thread_id).first()
+    if not thread:
+        db.close()
+        raise HTTPException(status_code=404, detail="Chat thread not found")
+
+    _assert_thread_access(thread, username)
+    if payload.sender_username != username:
+        db.close()
+        raise HTTPException(status_code=403, detail="Sender does not match authenticated username")
+
+    if payload.sender_username not in [thread.owner_username, thread.participant_username]:
+        db.close()
+        raise HTTPException(status_code=403, detail="Not authorized to send to this chat thread")
+
+    message = ChatMessage(
+        thread_id=thread_id,
+        sender_username=payload.sender_username,
+        content=payload.content.strip()
+    )
+    db.add(message)
+    thread.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(message)
+    sender_state = _get_or_create_read_state(db, thread_id, payload.sender_username)
+    sender_state.last_read_message_id = message.id
+    sender_state.updated_at = datetime.utcnow()
+    db.commit()
+
+    result = {
+        "id": message.id,
+        "thread_id": message.thread_id,
+        "sender_username": message.sender_username,
+        "content": message.content,
+        "created_at": message.created_at.isoformat() if message.created_at else None,
+    }
+    db.close()
+    return result

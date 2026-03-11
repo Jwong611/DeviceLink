@@ -111,8 +111,11 @@ The backend is implemented as a **FastAPI REST API** responsible for handling ap
 - Create chat threads between users
 - Send and receive messages
 - Track read states for messages
+  
+![DeviceLink Database Diagram](https://github.com/Jwong611/DeviceLink/blob/main/frontend/diagrams/class-diagram_devicelink.png)
 
 ---
+
 
 ## 5. Database
 

@@ -1,16 +1,72 @@
-# React + Vite
+## Frontend Technical Documentation
+### 1. Requirements
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+To run the frontend locally, the following software is required:
 
-Currently, two official plugins are available:
+Node.js (version 16 or later recommended)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+npm (included with Node.js)
 
-## React Compiler
+A modern web browser (Chrome, Firefox, Edge)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 2. Tools, Languages, and Libraries
 
-## Expanding the ESLint configuration
+The frontend of the DeviceLink project is built using the following technologies:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Languages
+
+JavaScript
+
+HTML
+
+CSS
+
+Framework
+
+React – used to build reusable and interactive UI components.
+
+Build Tool
+
+Vite – used for fast development, hot module reloading, and building the frontend.
+
+Libraries
+
+React – UI component framework
+
+Fetch API – used for communication with the backend API
+
+CSS – used for styling the interface
+
+### 3. Installation and Running the Frontend
+1. Clone the repository
+git clone <repository-url>
+cd DeviceLink/frontend
+2. Install dependencies
+npm install
+3. Start the development server
+npm run dev
+ 4. Open the application
+
+After starting the development server, Vite will provide a local address similar to:
+
+http://localhost:5173
+
+Open this URL in your browser to run the application.
+
+### 4. Frontend Overview
+
+The frontend provides the user interface for interacting with the DeviceLink platform. It communicates with the backend through HTTP API requests.
+
+User actions such as:
+
+registering or logging in
+
+browsing listings
+
+creating or updating listings
+
+managing users as an administrator
+
+viewing activity logs
+
+trigger API requests to the FastAPI backend, which processes the request and returns the corresponding data to be displayed in the interface.

@@ -2,15 +2,26 @@ import React, { useState, useEffect, useRef } from 'react';
 import Admin from './Admin';
 
 const API_BASE = 'http://localhost:8000';
+const SESSION_KEY = 'devicelink_session';
 
 function App() {
-  const [themeMode, setThemeMode] = useState(localStorage.getItem('devicelink_theme') || 'light');
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [authView, setAuthView] = useState('login');
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const getSavedSession = () => {
+    try {
+      const raw = localStorage.getItem(SESSION_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
 
-  const [formData, setFormData] = useState({ username: '', password: '' });
+  const savedSession = getSavedSession();
+  const [themeMode, setThemeMode] = useState(localStorage.getItem('devicelink_theme') || 'light');
+  const [isLoggedIn, setIsLoggedIn] = useState(Boolean(savedSession?.isLoggedIn));
+  const [isAdmin, setIsAdmin] = useState(Boolean(savedSession?.isAdmin));
+  const [authView, setAuthView] = useState('login');
+  const [currentPage, setCurrentPage] = useState(savedSession?.currentPage || 'dashboard');
+
+  const [formData, setFormData] = useState({ username: savedSession?.username || '', password: '' });
   const [listings, setListings] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -48,6 +59,23 @@ function App() {
     localStorage.setItem('devicelink_theme', themeMode);
   }, [themeMode]);
 
+  useEffect(() => {
+    if (!isLoggedIn || !formData.username) {
+      localStorage.removeItem(SESSION_KEY);
+      return;
+    }
+
+    localStorage.setItem(
+      SESSION_KEY,
+      JSON.stringify({
+        isLoggedIn: true,
+        isAdmin,
+        username: formData.username,
+        currentPage,
+      })
+    );
+  }, [isLoggedIn, isAdmin, formData.username, currentPage]);
+
   const logout = () => {
     setIsLoggedIn(false);
     setIsAdmin(false);
@@ -59,6 +87,7 @@ function App() {
     setShowCreate(false);
     setEditingListingId(null);
     setToastNotifications([]);
+    localStorage.removeItem(SESSION_KEY);
     unreadByThreadRef.current = {};
     unreadInitializedRef.current = false;
   };
@@ -69,6 +98,12 @@ function App() {
     setTimeout(() => {
       setToastNotifications((prev) => prev.filter((item) => item.id !== id));
     }, 4000);
+  };
+
+  const handleAdminTransferComplete = () => {
+    setIsAdmin(false);
+    setCurrentPage('dashboard');
+    addToastNotification('Admin privileges transferred successfully');
   };
 
   const handleAuth = async (endpoint) => {
@@ -824,7 +859,15 @@ function App() {
 
   if (isLoggedIn) {
     if (isAdmin) {
-      return <Admin username={formData.username} onLogout={logout} themeMode={themeMode} onToggleTheme={() => setThemeMode(isDarkMode ? 'light' : 'dark')} />;
+      return (
+        <Admin
+          username={formData.username}
+          onLogout={logout}
+          onAdminTransferComplete={handleAdminTransferComplete}
+          themeMode={themeMode}
+          onToggleTheme={() => setThemeMode(isDarkMode ? 'light' : 'dark')}
+        />
+      );
     }
 
     return (

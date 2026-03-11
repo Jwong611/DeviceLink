@@ -134,6 +134,9 @@ class UserSuspensionUpdate(BaseModel):
     username: str
     is_suspended: bool
 
+class AdminTransferRequest(BaseModel):
+    target_username: str
+
 class ChatThreadCreate(BaseModel):
     listing_id: int
     username: str
@@ -353,6 +356,41 @@ def get_all_users():
     users = db.query(User).all()
     db.close()
     return [{"id": u.id, "username": u.username, "is_suspended": u.is_suspended, "warning_count": u.warning_count, "is_admin": u.is_admin} for u in users]
+
+@app.post("/admin/transfer")
+def transfer_admin_privileges(admin_username: str, payload: AdminTransferRequest):
+    db = SessionLocal()
+    admin = db.query(User).filter(User.username == admin_username).first()
+    if not admin or not admin.is_admin:
+        db.close()
+        raise HTTPException(status_code=403, detail="Only admins can transfer admin privileges")
+
+    if payload.target_username == admin_username:
+        db.close()
+        raise HTTPException(status_code=400, detail="Cannot transfer admin privileges to yourself")
+
+    target_user = db.query(User).filter(User.username == payload.target_username).first()
+    if not target_user:
+        db.close()
+        raise HTTPException(status_code=404, detail="Target user not found")
+
+    if target_user.is_suspended:
+        db.close()
+        raise HTTPException(status_code=400, detail="Cannot transfer admin privileges to a suspended user")
+
+    admin.is_admin = False
+    target_user.is_admin = True
+    db.commit()
+
+    log_entry = ActivityLog(
+        action="admin_privileges_transferred",
+        username=payload.target_username,
+        details=f"Admin privileges transferred from {admin_username} to {payload.target_username}"
+    )
+    db.add(log_entry)
+    db.commit()
+    db.close()
+    return {"message": f"Admin privileges transferred to {payload.target_username}"}
 
 @app.get("/admin/listings")
 def get_all_listings_admin():

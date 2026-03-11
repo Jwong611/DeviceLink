@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 const API_BASE = "http://localhost:8000";
 
-function Admin({ username, onLogout, themeMode = 'light', onToggleTheme }) {
+function Admin({ username, onLogout, onAdminTransferComplete, themeMode = 'light', onToggleTheme }) {
   const [activeTab, setActiveTab] = useState('accounts');
   const [users, setUsers] = useState([]);
   const [listings, setListings] = useState([]);
@@ -11,6 +11,7 @@ function Admin({ username, onLogout, themeMode = 'light', onToggleTheme }) {
   const [userWarnings, setUserWarnings] = useState([]);
   const [warningReason, setWarningReason] = useState('');
   const [loading, setLoading] = useState(false);
+  const [transferTarget, setTransferTarget] = useState('');
   const isDarkMode = themeMode === 'dark';
   const theme = isDarkMode
     ? {
@@ -142,6 +143,36 @@ function Admin({ username, onLogout, themeMode = 'light', onToggleTheme }) {
       }
     } catch (err) {
       alert('Error updating listing');
+    }
+  };
+
+  const handleTransferAdmin = async () => {
+    if (!transferTarget) {
+      alert('Please select a user to transfer admin privileges to');
+      return;
+    }
+
+    if (!confirm(`Transfer admin privileges to ${transferTarget}? You will lose admin access immediately.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/admin/transfer?admin_username=${username}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_username: transferTarget }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.detail || 'Failed to transfer admin privileges');
+      }
+
+      if (onAdminTransferComplete) {
+        onAdminTransferComplete();
+      }
+    } catch (err) {
+      alert(err.message);
     }
   };
 
@@ -336,6 +367,32 @@ function Admin({ username, onLogout, themeMode = 'light', onToggleTheme }) {
         <h3 style={{ marginBottom: '1rem', fontSize: '1.3rem', color: theme.textStrong }}>
           Accounts
         </h3>
+        <div style={{ marginBottom: '1.5rem', padding: '1rem', backgroundColor: theme.surfaceAlt, borderRadius: '8px', border: `1px solid ${theme.border}` }}>
+          <h4 style={{ margin: '0 0 0.75rem 0', color: theme.textStrong }}>Transfer Admin Privileges</h4>
+          <p style={{ margin: '0 0 0.75rem 0', color: theme.textMuted, fontSize: '0.95rem' }}>
+            Choose a regular active user. This will remove admin access from your account immediately.
+          </p>
+          <select
+            value={transferTarget}
+            onChange={(e) => setTransferTarget(e.target.value)}
+            style={{ ...inputStyle, margin: '0 0 0.75rem 0' }}
+          >
+            <option value="">Select a user</option>
+            {users
+              .filter((user) => user.username !== username && !user.is_admin && !user.is_suspended)
+              .map((user) => (
+                <option key={user.id} value={user.username}>
+                  {user.username}
+                </option>
+              ))}
+          </select>
+          <button
+            onClick={handleTransferAdmin}
+            style={buttonStyle('secondary')}
+          >
+            Transfer Admin Rights
+          </button>
+        </div>
         {loading ? (
           <p>Loading...</p>
         ) : (

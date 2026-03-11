@@ -76,3 +76,5 @@ User actions such as:
 - viewing activity logs
 
 trigger **API requests to the FastAPI backend**, which processes the request and returns the corresponding data to be displayed in the interface.
+### Component diagram for the frontend:
+![Frontend component diagram](https://github.com/Jwong611/DeviceLink/blob/main/frontend/diagrams/component-diagram-frontend.png)

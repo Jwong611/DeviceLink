@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, create_engine, or_
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, create_engine, or_, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from pydantic import BaseModel, Field
@@ -33,6 +33,8 @@ class Listing(Base):
     owner = Column(String)
     status = Column(String, default='PENDING')  # PENDING, ACTIVE, DELETED, COMPLETED
     approved = Column(Boolean, default=False)
+    recipient_username = Column(String, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class UserWarning(Base):
@@ -77,6 +79,19 @@ class ChatReadState(Base):
     updated_at = Column(DateTime, default=datetime.utcnow)
 
 Base.metadata.create_all(bind=engine)
+
+def ensure_listing_history_columns():
+    with engine.begin() as connection:
+        columns = {
+            row[1]
+            for row in connection.execute(text("PRAGMA table_info(listings)")).fetchall()
+        }
+        if "recipient_username" not in columns:
+            connection.execute(text("ALTER TABLE listings ADD COLUMN recipient_username VARCHAR"))
+        if "completed_at" not in columns:
+            connection.execute(text("ALTER TABLE listings ADD COLUMN completed_at DATETIME"))
+
+ensure_listing_history_columns()
 
 app = FastAPI()
 
@@ -144,6 +159,9 @@ class ChatThreadCreate(BaseModel):
 class ChatMessageCreate(BaseModel):
     sender_username: str
     content: str = Field(..., min_length=1, max_length=2000)
+
+class ListingCompletionRequest(BaseModel):
+    recipient_username: str
 
 @app.post("/register")
 def register(user: UserSchema):
@@ -239,6 +257,8 @@ def get_listings(
             "owner": l.owner,
             "status": getattr(l, 'status', 'ACTIVE'),  # Handle case where status column might not exist
             "approved": l.approved,
+            "recipient_username": getattr(l, 'recipient_username', None),
+            "completed_at": l.completed_at.isoformat() if getattr(l, 'completed_at', None) else None,
             "created_at": l.created_at.isoformat() if l.created_at else None,
         }
 
@@ -338,6 +358,84 @@ def delete_listing(listing_id: int, username: str):
     db.commit()
     db.close()
     return {"message": "Listing deleted successfully"}
+
+@app.post("/listings/{listing_id}/complete")
+def complete_listing(listing_id: int, username: str, payload: ListingCompletionRequest):
+    db = SessionLocal()
+    db_listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if not db_listing:
+        db.close()
+        raise HTTPException(status_code=404, detail="Listing not found")
+    if db_listing.owner != username:
+        db.close()
+        raise HTTPException(status_code=403, detail="Not authorized to complete this listing")
+    if not db_listing.approved:
+        db.close()
+        raise HTTPException(status_code=400, detail="Only approved listings can be completed")
+    if db_listing.status == "COMPLETED":
+        db.close()
+        raise HTTPException(status_code=400, detail="Listing is already completed")
+
+    recipient = db.query(User).filter(User.username == payload.recipient_username).first()
+    if not recipient:
+        db.close()
+        raise HTTPException(status_code=404, detail="Recipient user not found")
+    if payload.recipient_username == username:
+        db.close()
+        raise HTTPException(status_code=400, detail="Recipient cannot be the listing owner")
+
+    db_listing.status = "COMPLETED"
+    db_listing.recipient_username = payload.recipient_username
+    db_listing.completed_at = datetime.utcnow()
+    db.commit()
+    db.refresh(db_listing)
+
+    log_entry = ActivityLog(
+        action="listing_completed",
+        username=username,
+        details=f"Completed donation '{db_listing.title}' for recipient {payload.recipient_username}"
+    )
+    db.add(log_entry)
+    db.commit()
+
+    result = {
+        "id": db_listing.id,
+        "title": db_listing.title,
+        "recipient_username": db_listing.recipient_username,
+        "completed_at": db_listing.completed_at.isoformat() if db_listing.completed_at else None,
+        "status": db_listing.status,
+    }
+    db.close()
+    return result
+
+@app.get("/donation-history")
+def get_donation_history(username: str):
+    db = SessionLocal()
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        db.close()
+        raise HTTPException(status_code=404, detail="User not found")
+
+    listings = db.query(Listing).filter(
+        Listing.owner == username,
+        Listing.status == "COMPLETED"
+    ).order_by(Listing.completed_at.desc(), Listing.created_at.desc()).all()
+
+    result = [
+        {
+            "id": listing.id,
+            "title": listing.title,
+            "description": listing.description,
+            "category": listing.category,
+            "condition": listing.condition,
+            "quantity": listing.quantity,
+            "recipient_username": listing.recipient_username,
+            "completed_at": listing.completed_at.isoformat() if listing.completed_at else None,
+        }
+        for listing in listings
+    ]
+    db.close()
+    return result
 
 # ========== ADMIN ENDPOINTS ==========
 

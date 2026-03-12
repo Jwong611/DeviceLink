@@ -23,6 +23,7 @@ function App() {
 
   const [formData, setFormData] = useState({ username: savedSession?.username || '', password: '' });
   const [listings, setListings] = useState([]);
+  const [donationHistory, setDonationHistory] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
@@ -165,6 +166,19 @@ function App() {
     }
   };
 
+  const fetchDonationHistory = async () => {
+    if (!formData.username) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/donation-history?username=${encodeURIComponent(formData.username)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setDonationHistory(data);
+    } catch (err) {
+      console.error('Failed to fetch donation history:', err);
+    }
+  };
+
   const fetchChatThreads = async (showNotifications = false) => {
     if (!formData.username) return;
 
@@ -284,6 +298,48 @@ function App() {
     }
   };
 
+  const getPotentialRecipients = (listingId) => {
+    return chatThreads
+      .filter((thread) => thread.listing_id === listingId)
+      .map((thread) => (
+        thread.owner_username === formData.username
+          ? thread.participant_username
+          : thread.owner_username
+      ))
+      .filter((value, index, array) => value && array.indexOf(value) === index);
+  };
+
+  const handleCompleteDonation = async (listing) => {
+    const potentialRecipients = getPotentialRecipients(listing.id);
+    const promptLabel = potentialRecipients.length > 0
+      ? `Enter recipient username. Suggested: ${potentialRecipients.join(', ')}`
+      : 'Enter recipient username';
+    const recipientUsername = window.prompt(promptLabel, potentialRecipients[0] || '');
+
+    if (!recipientUsername || !recipientUsername.trim()) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/listings/${listing.id}/complete?username=${encodeURIComponent(formData.username)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipient_username: recipientUsername.trim() }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.detail || 'Failed to complete donation');
+      }
+
+      addToastNotification(`Donation marked completed for ${data.recipient_username}`);
+      fetchListings();
+      fetchDonationHistory();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   const handleCreateListing = async (e) => {
     e.preventDefault();
 
@@ -377,6 +433,7 @@ function App() {
   useEffect(() => {
     if (!isLoggedIn) return;
     fetchListings();
+    fetchDonationHistory();
     fetchChatThreads(false);
   }, [isLoggedIn]);
 
@@ -507,6 +564,23 @@ function App() {
               {totalUnreadCount}
             </span>
           )}
+        </button>
+        <button
+          onClick={() => {
+            setCurrentPage('history');
+            fetchDonationHistory();
+          }}
+          style={{
+            border: currentPage === 'history' ? '1px solid #2563eb' : `1px solid ${theme.border}`,
+            backgroundColor: currentPage === 'history' ? theme.accentSurface : theme.surfaceAlt,
+            color: theme.textStrong,
+            borderRadius: '8px',
+            padding: '8px 12px',
+            cursor: 'pointer',
+            fontWeight: '600',
+          }}
+        >
+          History
         </button>
       </div>
 
@@ -641,7 +715,6 @@ function App() {
             style={{ padding: '6px 12px', borderRadius: '6px', border: `1px solid ${theme.border}`, fontSize: '0.9rem', backgroundColor: theme.surface, color: theme.text, cursor: 'pointer' }}
           >
             <option value='ACTIVE'>Active - Visible to everyone</option>
-            <option value='COMPLETED'>Completed - Donation completed</option>
             <option value='DELETED'>Deleted - Hidden from public</option>
           </select>
         </div>
@@ -661,6 +734,14 @@ function App() {
           >
             Delete Listing
           </button>
+          {item.approved && item.status === 'ACTIVE' && (
+            <button
+              onClick={() => handleCompleteDonation(item)}
+              style={{ backgroundColor: '#059669', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: '600' }}
+            >
+              Complete Donation
+            </button>
+          )}
         </div>
       )}
 
@@ -819,7 +900,6 @@ function App() {
             <label style={labelStyle}>Status</label>
             <select style={inputStyle} value={newListing.status} onChange={(e) => setNewListing({ ...newListing, status: e.target.value })}>
               <option value='ACTIVE'>Active - Visible to everyone</option>
-              <option value='COMPLETED'>Completed - Donation completed</option>
               <option value='DELETED'>Deleted - Hidden from public</option>
             </select>
 
@@ -857,6 +937,63 @@ function App() {
     </>
   );
 
+  const DonationHistoryPage = () => (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: '1.9rem', color: theme.textStrong }}>Donation History</h3>
+          <p style={{ margin: '0.35rem 0 0 0', color: theme.textMuted }}>
+            Completed donations for <strong>{formData.username}</strong>
+          </p>
+        </div>
+        <button
+          onClick={fetchDonationHistory}
+          style={{ border: `1px solid ${theme.border}`, backgroundColor: theme.surfaceAlt, color: theme.textStrong, borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', fontWeight: '600' }}
+        >
+          Refresh
+        </button>
+      </div>
+
+      {donationHistory.length === 0 ? (
+        <div style={{ border: `1px solid ${theme.border}`, backgroundColor: theme.surfaceAlt, borderRadius: '12px', padding: '1.25rem' }}>
+          <p style={{ margin: 0, color: theme.textMuted, fontSize: '1rem' }}>No donation history available.</p>
+        </div>
+      ) : (
+        donationHistory.map((record) => (
+          <div key={record.id} style={{ border: `1px solid ${theme.border}`, backgroundColor: theme.surface, borderRadius: '12px', padding: '1.25rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', marginBottom: '0.5rem' }}>
+              <h4 style={{ margin: 0, color: theme.textStrong, fontSize: '1.2rem' }}>{record.title}</h4>
+              <span style={{ backgroundColor: theme.surfaceAlt, color: theme.textStrong, borderRadius: '999px', padding: '4px 10px', fontSize: '0.8rem', fontWeight: '700' }}>
+                Completed
+              </span>
+            </div>
+            <p style={{ margin: '0 0 0.75rem 0', color: theme.textMuted }}>{record.description}</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '12px' }}>
+              <div>
+                <div style={{ color: theme.textMuted, fontSize: '0.8rem', marginBottom: '0.2rem' }}>Category</div>
+                <div style={{ color: theme.textStrong, fontWeight: '600' }}>{record.category}</div>
+              </div>
+              <div>
+                <div style={{ color: theme.textMuted, fontSize: '0.8rem', marginBottom: '0.2rem' }}>Condition</div>
+                <div style={{ color: theme.textStrong, fontWeight: '600' }}>{record.condition}</div>
+              </div>
+              <div>
+                <div style={{ color: theme.textMuted, fontSize: '0.8rem', marginBottom: '0.2rem' }}>Receiver</div>
+                <div style={{ color: theme.textStrong, fontWeight: '600' }}>{record.recipient_username || 'Unknown'}</div>
+              </div>
+              <div>
+                <div style={{ color: theme.textMuted, fontSize: '0.8rem', marginBottom: '0.2rem' }}>Completion Date</div>
+                <div style={{ color: theme.textStrong, fontWeight: '600' }}>
+                  {record.completed_at ? new Date(record.completed_at).toLocaleString() : 'Unknown'}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+
   if (isLoggedIn) {
     if (isAdmin) {
       return (
@@ -888,7 +1025,7 @@ function App() {
 
         <div style={cardStyle}>
           {HeaderNav()}
-          {currentPage === 'chat' ? ChatPage() : DashboardPage()}
+          {currentPage === 'chat' ? ChatPage() : currentPage === 'history' ? DonationHistoryPage() : DashboardPage()}
         </div>
       </div>
     );
